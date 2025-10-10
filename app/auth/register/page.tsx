@@ -80,7 +80,7 @@ export default function RegisterPage() {
             <p className="mt-4 text-sm text-blue-100 text-center">
               ¿Ya tienes una cuenta?{" "}
               <a
-                href="/auth"
+                href="/auth/login"
                 className="text-yellow-300 hover:text-yellow-400 font-semibold transition"
               >
                 Inicia sesión

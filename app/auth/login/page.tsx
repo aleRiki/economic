@@ -56,7 +56,7 @@ export default function AuthPage() {
         <div className="mt-6 text-sm text-blue-100">
           ¿Aún no tienes cuenta?
           <a
-            href="#"
+            href="/auth/register"
             className="ml-1 text-white font-semibold hover:underline inline-flex items-center gap-1"
           >
             Crear cuenta <UserPlus size={14} />
