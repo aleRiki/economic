@@ -47,11 +47,6 @@ export interface PostResponse {
   // Agrega más campos si tu API retorna algo específico después de un POST
 }
 
-// -------------------------------------------------------------
-// FUNCIONES DE AUTENTICACIÓN Y OBTENCIÓN DE DATOS
-// -------------------------------------------------------------
-
-// Función de Registro (Catch block corregido)
 export const registerUser = async (data: RegisterDto) => {
   try {
     const response = await axios.post(`${API_BASE_URL}/auth/register`, data);
@@ -65,7 +60,6 @@ export const registerUser = async (data: RegisterDto) => {
   }
 };
 
-// Función de Login (Tipado de 'data' y catch block corregido)
 export const loginUser = async (data: LoginDto): Promise<LoginResponse> => {
   try {
     const response = await axios.post(`${API_BASE_URL}/auth/login`, data);
