@@ -1,10 +1,12 @@
-// ./components/CurrencyDistribution.jsx
 "use client";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { useState, useEffect, useCallback } from 'react';
 import { getTransaction } from "@/lib/auth-service";  
 
 
+// ----------------------------------------------------------------------
+// TIPOS Y UTILIDADES
+// ----------------------------------------------------------------------
 
 interface ChartData {
   currency: string;
@@ -13,12 +15,24 @@ interface ChartData {
   color: string; 
 }
 
+// Interfaz mínima para el tipo de datos que esperamos de la API de transacciones
+interface MinimalTransaction {
+  amount: string; // Para parsear el monto
+  card: {
+    account: {
+      type: string; // Para agrupar por moneda
+    };
+  } | null | undefined;
+}
+
+
 // Función para mapear el tipo de moneda a un color
 const getCurrencyColor = (currency: string) => {
   switch (currency.toUpperCase()) {
     case "USD":
       return "#2563eb"; // Azul
     case "EUR":
+    case "EURO": // Agrego un caso extra por si la API varía el nombre
       return "#10b981"; // Verde
     case "CUP":
       return "#ef4444"; // Rojo
@@ -31,14 +45,16 @@ const getCurrencyColor = (currency: string) => {
  * Procesa la lista de transacciones para agruparlas por tipo de moneda 
  * (currency type) y calcular la suma total del valor ('value') y el conteo 
  * de transacciones ('num_tx').
- * @param transactions 
+ * @param transactions Array de transacciones obtenidas de la API (MinimalTransaction[]).
  * @returns
  */
-const aggregateTransactionData = (transactions: any[]): ChartData[] => {
+const aggregateTransactionData = (transactions: MinimalTransaction[]): ChartData[] => {
   const aggregated = transactions.reduce((acc, transaction) => {
-   
+    
+    // Acceso seguro a las propiedades anidadas
     const currency = transaction.card?.account?.type;
-    const amount = parseFloat(transaction.amount);
+    // Aseguramos que amount sea una cadena antes de intentar parsear
+    const amount = parseFloat(String(transaction.amount));
 
     if (currency && !isNaN(amount)) {
       if (!acc[currency]) {
@@ -62,6 +78,10 @@ const aggregateTransactionData = (transactions: any[]): ChartData[] => {
 };
 
 
+// ----------------------------------------------------------------------
+// COMPONENTE PRINCIPAL
+// ----------------------------------------------------------------------
+
 export default function CurrencyDistribution() {
   const [chartData, setChartData] = useState<ChartData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -74,15 +94,19 @@ export default function CurrencyDistribution() {
       
       const transactions = await getTransaction(); 
       
-      
-      const processedData = aggregateTransactionData(transactions);
+      // SOLUCIÓN: Afirmamos que el resultado de getTransaction() es MinimalTransaction[]
+      const processedData = aggregateTransactionData(transactions as MinimalTransaction[]);
       
       setChartData(processedData);
       
-    } catch (err: any) {
+    } catch (err: unknown) { // Uso de 'unknown' para tipado seguro
       console.error("Error al obtener las transacciones:", err);
       
-      setError(err.message || "No se pudieron cargar los datos de las transacciones.");
+      const errorMessage = (err instanceof Error) 
+          ? err.message 
+          : "No se pudieron cargar los datos de las transacciones.";
+      
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -109,7 +133,7 @@ export default function CurrencyDistribution() {
   }
 
   if (chartData.length === 0) {
-     return (
+      return (
       <div className="bg-white p-6 rounded-lg shadow text-center text-gray-600">
         No hay transacciones para mostrar.
       </div>
@@ -134,7 +158,7 @@ export default function CurrencyDistribution() {
       <ResponsiveContainer width="100%" height={250}>
         <BarChart data={chartData} margin={{ top: 20 }}>
           <XAxis dataKey="currency" />
-         
+          
           <YAxis 
             yAxisId="left" 
             orientation="left" 
@@ -162,7 +186,8 @@ export default function CurrencyDistribution() {
           />
           <Legend />
           
-       
+        
+          {/* Mapping individual Bar components by currency (for value) */}
           {chartData.map(item => (
             <Bar 
               key={`value-${item.currency}`}

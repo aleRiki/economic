@@ -9,6 +9,7 @@ import {
   Legend,
 } from "recharts";
 import { useState, useEffect, useCallback } from "react";
+// Asumo que getTransaction proviene de tu servicio
 import { getTransaction } from "@/lib/auth-service";
 
 // -----------------------------------------------------------
@@ -17,7 +18,21 @@ import { getTransaction } from "@/lib/auth-service";
 
 // 1. Declaramos las monedas como tupla literal para tipado fuerte
 const CURRENCIES = ["USD", "EUR", "CUP"] as const;
-type Currency = typeof CURRENCIES[number];
+type Currency = (typeof CURRENCIES)[number];
+
+// Interfaz mínima para el tipo de datos que esperamos de la API de transacciones
+interface MinimalTransaction {
+  createAt: string; // Para agrupar por día
+  amount: string; // Para parsear el monto
+  card:
+    | {
+        account: {
+          type: Currency; // Para agrupar por moneda
+        };
+      }
+    | null
+    | undefined;
+}
 
 // Colores asignados a cada moneda
 const CURRENCY_COLORS: Record<Currency, string> = {
@@ -35,23 +50,28 @@ type TrendData = {
 
 /**
  * Procesa la lista de transacciones para agrupar el valor total por DÍA y moneda.
+ * @param transactions - Array de transacciones obtenidas de la API.
  */
-const aggregateTrendData = (transactions: any[]): TrendData[] => {
-  const dailyData: Record<string, Record<Currency, number>> = {};
+const aggregateTrendData = (
+  transactions: MinimalTransaction[]
+): TrendData[] => {
+  const dailyData: Record<string, Record<Currency, number>> = {} as Record<
+    string,
+    Record<Currency, number>
+  >;
 
   transactions.forEach((tx) => {
     const date = new Date(tx.createAt);
     const dayKey = date.toISOString().split("T")[0]; // Ej. "2025-10-16"
-
-    const currency = tx.card?.account?.type as Currency;
+    // Acceso seguro a las propiedades anidadas
+    const currency = tx.card?.account?.type;
     const amount = parseFloat(tx.amount);
 
     if (currency && CURRENCIES.includes(currency) && !isNaN(amount)) {
       if (!dailyData[dayKey]) {
         dailyData[dayKey] = {} as Record<Currency, number>;
       }
-      dailyData[dayKey][currency] =
-        (dailyData[dayKey][currency] || 0) + amount;
+      dailyData[dayKey][currency] = (dailyData[dayKey][currency] || 0) + amount;
     }
   });
 
@@ -78,9 +98,7 @@ const aggregateTrendData = (transactions: any[]): TrendData[] => {
   });
 
   // Filtramos días sin actividad
-  return chartData.filter((d) =>
-    CURRENCIES.some((c) => Number(d[c] || 0) > 0)
-  );
+  return chartData.filter((d) => CURRENCIES.some((c) => Number(d[c] || 0) > 0));
 };
 
 /**
@@ -89,6 +107,7 @@ const aggregateTrendData = (transactions: any[]): TrendData[] => {
 function calculateGrowth(data: TrendData[], key: Currency): string {
   if (data.length < 2) return "N/A";
 
+  // Uso seguro de optional chaining en la desestructuración de TrendData
   const lastValue = data[data.length - 1][key] || 0;
   const firstValue = data[0][key] || 0;
 
@@ -113,14 +132,17 @@ export default function AccountTrends() {
     setIsLoading(true);
     setError(null);
     try {
-      const transactions = await getTransaction();
+      // CORRECCIÓN DE TIPADO: Forzamos el tipado
+      const transactions = (await getTransaction()) as MinimalTransaction[];
       const processedData = aggregateTrendData(transactions);
       setChartData(processedData);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error al obtener las transacciones:", err);
-      setError(
-        err.message || "No se pudieron cargar los datos de la tendencia."
-      );
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : "No se pudieron cargar los datos de la tendencia.";
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }

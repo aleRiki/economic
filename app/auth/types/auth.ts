@@ -1,9 +1,12 @@
-import { Role } from "./enums"; 
-
+import { Role } from "./enums";
 
 export type RegisterDto = {
   name: string;
   email: string;
   password: string;
-  rol: Role; 
+  rol: Role;
+};
+export type LoginDto = {
+  email: string;
+  password: string;
 };

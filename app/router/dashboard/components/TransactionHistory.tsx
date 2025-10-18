@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { DollarSign, AlertTriangle, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { getAccounts, Account } from "@/lib/auth-service";
+import { getAccounts, Account } from "@/lib/auth-service"; // Account tipada correctamente
 
 // ----------------------------------------------------------------------
 // 1. TASAS DE CONVERSIÓN
@@ -39,13 +39,18 @@ export default function TransactionHistory() {
     const fetchAccounts = async () => {
       try {
         const accountsData = await getAccounts();
+        
+        // CORRECCIÓN 1: Tipado explícito de los parámetros de ordenación
         const sortedAccounts = accountsData.sort(
-          (a: any, b: any) =>
+          (a: Account, b: Account) =>
             new Date(b.createAt).getTime() - new Date(a.createAt).getTime()
         );
         setAccounts(sortedAccounts);
-      } catch (err: any) {
-        const message = err.message || "Error al cargar los datos financieros.";
+      } catch (err: unknown) { // 👈 CORRECCIÓN 2: Uso de 'unknown'
+        
+        const errorObject = err instanceof Error ? err : new Error("Error desconocido al cargar los datos.");
+        const message = errorObject.message || "Error al cargar los datos financieros.";
+        
         if (message.includes("Token de autenticación")) {
           router.push("/auth/login");
           return;
@@ -217,7 +222,8 @@ export default function TransactionHistory() {
             </thead>
             <tbody>
               {accounts.length > 0 ? (
-                accounts.map((account: any) => (
+                // CORRECCIÓN 3 & 4: Tipado explícito de Account en el map
+                accounts.map((account: Account) => (
                   <tr
                     key={account.id}
                     className="border-b text-gray-700 hover:bg-gray-50 transition"
@@ -225,6 +231,7 @@ export default function TransactionHistory() {
                     <td className="py-2 px-1 font-semibold">{account.name}</td>
                     <td className="py-2 px-1">{account.type}</td>
                     <td className="py-2 px-1 font-mono text-sm">
+                      {/* Asumiendo que balance es string o number, toLocaleString es seguro */}
                       {parseFloat(account.balance).toLocaleString("en-US", {
                         minimumFractionDigits: 2,
                       })}

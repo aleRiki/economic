@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import axios from "axios";
-import { useRouter } from "next/navigation"; // 💥 Importamos useRouter
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button"; 
-import { Input } from "@/components/ui/input";   
-import { Label } from "@/components/ui/label";   
+import { Input } from "@/components/ui/input";   
+import { Label } from "@/components/ui/label";   
 import { CreditCard, Loader2, CheckCircle, XCircle } from "lucide-react";
+import { AxiosError } from "axios"; // 👈 Importamos AxiosError para un mejor tipado
 
 // URL base de la API (Asegúrate de que esta constante sea accesible)
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
@@ -82,15 +83,26 @@ export default function NewCardForm() {
         router.push("/router/dashboard/accounts"); 
       }, 1500); // 1.5 segundos de retraso
       
-    } catch (err: any) {
+    } catch (err) { // 👈 CORRECCIÓN 1: Dejamos el tipo inferido o usamos 'unknown'
       console.error("Error al crear tarjeta:", err);
-      const errorMessage =
-        err.response?.data?.message || err.message || "Error al conectar con el servidor.";
+      
+      let errorMessage = "Error al conectar con el servidor o desconocido.";
+
+      // 85:19 ERROR CORREGIDO: Usamos la función de AxiosError para manejar el tipado de la respuesta
+      if (axios.isAxiosError(err)) {
+        // El error tiene una propiedad 'response' con la data del backend
+        errorMessage = err.response?.data?.message || err.message;
+      } else if (err instanceof Error) {
+        // Es un Error estándar
+        errorMessage = err.message;
+      }
+      
       setError(errorMessage);
     } finally {
-      // Solo desactivamos loading si hubo un error. Si fue exitoso, el loading continúa hasta la redirección.
+      // Solo desactivamos loading si hubo un error o si el éxito fue manejado por el setTimeout.
+      // Aquí el `if` original está bien: el loading sigue si el success ya está seteado (para la redirección).
       if (!success) {
-         setLoading(false);
+          setLoading(false);
       }
     }
   };

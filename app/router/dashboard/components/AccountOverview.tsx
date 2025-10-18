@@ -11,6 +11,7 @@ interface Account {
     name: string;
     type: string; // Ejemplo: 'USD', 'EUR', 'CUP', 'Savings', etc.
     balance: string; // La API lo retorna como string, lo convertiremos a number
+    createAt: string; // Añadido para consistencia si se usa en otros componentes
     deletedAt: string | null;
 }
 
@@ -41,12 +42,17 @@ export default function AccountOverview() {
                 const data = await getAccounts();
                 setAccounts(data);
                 setError('');
-            } catch (err: any) {
+            } catch (err: unknown) { // 👈 CORRECCIÓN ÚNICA
+                
+                const errorObject = err instanceof Error ? err : new Error("Error desconocido.");
+                
                 // Si el token es inválido o no existe, redirigir al login
-                if (err.message && err.message.includes('Token de autenticación no encontrado')) {
+                if (errorObject.message.includes('Token de autenticación')) {
                      router.push('/auth/login');
+                     return;
                 }
-                setError(err.message || 'Error al cargar las cuentas.');
+                
+                setError(errorObject.message || 'Error al cargar las cuentas.');
             } finally {
                 setLoading(false);
             }
@@ -81,7 +87,8 @@ export default function AccountOverview() {
         );
     }
     
-    if (error && !error.includes('Token de autenticación no encontrado')) {
+    // Si el error existe y NO es un error de redirección (que se maneja arriba)
+    if (error) { 
         return (
             <div className="p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
                 <p className="font-semibold">Error al conectar con el servicio de cuentas:</p>

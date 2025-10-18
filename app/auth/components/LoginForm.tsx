@@ -1,29 +1,26 @@
-'use client'; 
+"use client";
 
 import React, { useState } from "react";
 import { Lock, UserPlus, Mail, Key } from "lucide-react";
-import { useRouter } from 'next/navigation';
-import { loginUser } from '@/lib/auth-service'; // Importamos la función de login
+import { useRouter } from "next/navigation";
+import { loginUser } from "@/lib/auth-service"; 
+import { LoginDto } from "../types/auth";
 
 // Definimos el tipo para los datos de inicio de sesión
-interface LoginDto {
-  email: string;
-  password: string;
-}
 
 // Renombramos la exportación a LoginForm para mayor claridad
 export const LoginForm = () => {
   const router = useRouter();
-  
+
   // Estado para los datos del formulario
   const [formData, setFormData] = useState<LoginDto>({
-    email: '',
-    password: '',
+    email: "",
+    password: "",
   });
 
   // Estado para la UI
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   // Manejador de cambios en los inputs
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -34,19 +31,29 @@ export const LoginForm = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError('');
+    setError("");
 
     try {
       // 1. Consumir el endpoint /auth/login
       const result = await loginUser(formData);
-      
+
       // 2. Si es exitoso, redireccionar (la función loginUser ya guarda el token)
-      console.log('Login exitoso:', result.email);
-      router.push('/router/dashboard'); 
-      
-    } catch (err: any) {
-      
-      setError(err.message || 'Error al iniciar sesión. Verifica tus credenciales.'); 
+      console.log("Login exitoso:", result.email);
+      router.push("/router/dashboard");
+    } catch (err: unknown) {
+      // 👈 CORRECCIÓN 1: Usar 'unknown' en lugar de 'any' para el error
+
+      // CORRECCIÓN 2: Implementación segura para obtener el mensaje del error
+      // Comprobamos si el objeto de error es un objeto y tiene una propiedad 'message' (como un Error)
+      const errorMessage =
+        err &&
+        typeof err === "object" &&
+        "message" in err &&
+        typeof (err as { message: unknown }).message === "string"
+          ? (err as { message: string }).message
+          : "Error al iniciar sesión. Verifica tus credenciales.";
+
+      setError(errorMessage); // Línea 47 corregida
     } finally {
       setLoading(false);
     }
@@ -66,10 +73,11 @@ export const LoginForm = () => {
 
         {/* Formulario */}
         <form onSubmit={handleSubmit} className="w-full flex flex-col gap-4">
-          
           {/* Campo de Correo electrónico */}
           <div className="flex flex-col items-start">
-            <label htmlFor="email" className="text-sm text-blue-100 mb-1">Correo electrónico</label>
+            <label htmlFor="email" className="text-sm text-blue-100 mb-1">
+              Correo electrónico
+            </label>
             <div className="flex items-center w-full bg-white/20 rounded-lg px-3 py-2 focus-within:bg-white/30 transition">
               <Mail className="text-blue-200 mr-2" size={18} />
               <input
@@ -88,7 +96,9 @@ export const LoginForm = () => {
 
           {/* Campo de Contraseña */}
           <div className="flex flex-col items-start">
-            <label htmlFor="password" className="text-sm text-blue-100 mb-1">Contraseña</label>
+            <label htmlFor="password" className="text-sm text-blue-100 mb-1">
+              Contraseña
+            </label>
             <div className="flex items-center w-full bg-white/20 rounded-lg px-3 py-2 focus-within:bg-white/30 transition">
               <Key className="text-blue-200 mr-2" size={18} />
               <input
@@ -104,7 +114,7 @@ export const LoginForm = () => {
               />
             </div>
           </div>
-          
+
           {/* Mensaje de Error */}
           {error && (
             <p className="p-3 bg-red-500/80 text-white text-sm rounded-lg mt-2 font-medium">
@@ -117,14 +127,14 @@ export const LoginForm = () => {
             type="submit"
             disabled={loading}
             className={`w-full mt-4 font-semibold py-2 rounded-lg shadow-md transition flex items-center justify-center
-              ${loading 
-                ? 'bg-blue-400 cursor-not-allowed opacity-75' 
-                : 'bg-blue-500 hover:bg-blue-400 text-white'
-              }`
-            }
+              ${
+                loading
+                  ? "bg-blue-400 cursor-not-allowed opacity-75"
+                  : "bg-blue-500 hover:bg-blue-400 text-white"
+              }`}
           >
             <Lock size={18} className="mr-2" />
-            {loading ? 'Verificando...' : 'Iniciar Sesión'}
+            {loading ? "Verificando..." : "Iniciar Sesión"}
           </button>
         </form>
 
@@ -147,4 +157,4 @@ export const LoginForm = () => {
       </div>
     </main>
   );
-}
+};

@@ -43,9 +43,15 @@ export default function AccountSummary() {
         try {
             const ratesData = await fetchInitialRates(); // Reemplazar con getExchangeRates() real
             setExchangeRates(ratesData);
-        } catch (err: any) {
+        } catch (err: unknown) { // 👈 CORRECCIÓN 1 (Línea 46:23)
             console.error("Error al obtener las tasas de cambio:", err);
-            setError("Error al cargar las tasas de cambio.");
+            
+            // Extraer el mensaje de error de forma segura
+            const errorMessage = (err instanceof Error) 
+                ? err.message 
+                : "Error al cargar las tasas de cambio.";
+                
+            setError(errorMessage);
         }
     }, []);
 
@@ -53,11 +59,15 @@ export default function AccountSummary() {
         try {
             const data = await getCard();
             setCards(data);
-        } catch (err: any) {
+        } catch (err: unknown) { // 👈 CORRECCIÓN 2 (Línea 56:23)
             console.error("Error al obtener las tarjetas:", err);
-            setError(
-                err.message || "Error desconocido al cargar el resumen de cuentas."
-            );
+            
+            // Extraer el mensaje de error de forma segura
+            const errorMessage = (err instanceof Error)
+                ? err.message
+                : "Error desconocido al cargar el resumen de cuentas.";
+                
+            setError(errorMessage);
         }
     }, []);
 

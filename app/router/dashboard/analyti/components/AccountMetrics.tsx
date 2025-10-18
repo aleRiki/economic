@@ -1,10 +1,19 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { 
-  PieChart, Pie, Cell, ResponsiveContainer, Label, 
-  LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, Legend // Importar componentes de LineChart
+import {
+  PieChart,
+  Pie,
+  Cell,
+  ResponsiveContainer,
+  Label,
+  LineChart,
+  Line,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Legend,
 } from "recharts";
-import { DollarSign } from "lucide-react";
 import { getTransaction } from "@/lib/auth-service";
 
 // ----------------------------------------------------------------------
@@ -41,9 +50,8 @@ export type TransactionApi = {
 // Tipo para los datos del gráfico de tendencia
 type DailyTrendData = {
   date: string;
-  [currency: string]: number | string; 
+  [currency: string]: number | string;
 };
-
 
 // ----------------------------------------------------------------------
 // TASAS DE CAMBIO POR DEFECTO Y FUNCIÓN DE CARGA (SIMULADA)
@@ -68,9 +76,9 @@ const getTrendData = (
   rates: Record<string, number>
 ): { trend: DailyTrendData[]; growth: Record<string, number> } => {
   const dailyTotals: Record<string, DailyTrendData> = {};
-  
+
   // Guardamos un historial de valores diarios CONSOLIDADOS para el cálculo de crecimiento
-  const dailyConsolidatedValues: Record<string, number> = {}; 
+  const dailyConsolidatedValues: Record<string, number> = {}; // ⚠️ Advertencia de variable no usada (la mantengo, pero es buena idea eliminarla si no la usas)
 
   transactions.forEach((tx) => {
     if (tx.transactionType !== "deposit" || !tx.card || !tx.card.account) {
@@ -78,7 +86,11 @@ const getTrendData = (
     }
 
     // Usamos toLocaleDateString para agrupar por día (formato DD/MM/AAAA)
-    const dateKey = new Date(tx.createAt).toLocaleDateString("es-ES", { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const dateKey = new Date(tx.createAt).toLocaleDateString("es-ES", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
     const amountNum = parseFloat(tx.amount) || 0;
     const currency = tx.card.account.type;
     const rate = rates[currency] || 0;
@@ -91,53 +103,52 @@ const getTrendData = (
     }
     const currentTotal = (dailyTotals[dateKey][currency] as number) || 0;
     dailyTotals[dateKey][currency] = currentTotal + amountInUSD;
-
   });
-  
+
   // Convertir a Array y Ordenar por Fecha
   const trend = Object.values(dailyTotals);
   // Ordenar correctamente las fechas (necesario si la API no devuelve en orden)
   trend.sort((a, b) => {
-    const [d1, m1, y1] = (a.date as string).split('/').map(Number);
-    const [d2, m2, y2] = (b.date as string).split('/').map(Number);
-    return new Date(y1, m1 - 1, d1).getTime() - new Date(y2, m2 - 1, d2).getTime();
+    const [d1, m1, y1] = (a.date as string).split("/").map(Number);
+    const [d2, m2, y2] = (b.date as string).split("/").map(Number);
+    return (
+      new Date(y1, m1 - 1, d1).getTime() - new Date(y2, m2 - 1, d2).getTime()
+    );
   });
 
   // 2. Cálculo de Crecimiento (Growth)
   const growth: Record<string, number> = {};
-  
+
   // Identificar todas las monedas presentes en la data de tendencia
   const allCurrencies = new Set<string>();
-  trend.forEach(item => {
-      Object.keys(item).filter(k => k !== 'date').forEach(currency => allCurrencies.add(currency));
+  trend.forEach((item) => {
+    Object.keys(item)
+      .filter((k) => k !== "date")
+      .forEach((currency) => allCurrencies.add(currency));
   });
 
-  allCurrencies.forEach(currency => {
-      const dailyValues = trend
-          .map(d => (d[currency] as number) || 0)
-          .filter(val => val > 0); // Solo días con depósitos
+  allCurrencies.forEach((currency) => {
+    const dailyValues = trend
+      .map((d) => (d[currency] as number) || 0)
+      .filter((val) => val > 0); // Solo días con depósitos
 
-      if (dailyValues.length >= 2) {
-          const firstValue = dailyValues[0];
-          const lastValue = dailyValues[dailyValues.length - 1];
-          
-          if (firstValue > 0) {
-              growth[currency] = ((lastValue - firstValue) / firstValue) * 100;
-          } else {
-              growth[currency] = 0;
-          }
+    if (dailyValues.length >= 2) {
+      const firstValue = dailyValues[0];
+      const lastValue = dailyValues[dailyValues.length - 1];
+
+      if (firstValue > 0) {
+        growth[currency] = ((lastValue - firstValue) / firstValue) * 100;
       } else {
-          growth[currency] = 0; // No hay suficientes puntos
+        growth[currency] = 0;
       }
+    } else {
+      growth[currency] = 0; // No hay suficientes puntos
+    }
   });
 
   return { trend, growth };
 };
 
-
-// ----------------------------------------------------------------------
-// FUNCIÓN DE ETIQUETA GLOBAL (RenderGlobalLabel)
-// ----------------------------------------------------------------------
 type LabelProps = { cx?: number | string; cy?: number | string };
 
 const RenderGlobalLabel = ({
@@ -173,14 +184,12 @@ const RenderGlobalLabel = ({
   );
 };
 
-
-// ----------------------------------------------------------------------
-// COMPONENTE PRINCIPAL
-// ----------------------------------------------------------------------
-
 export default function TransactionHistory() {
   const [transactions, setTransactions] = useState<TransactionApi[]>([]);
-  const [exchangeRates, setExchangeRates] = useState<Record<string, number> | null>(null);
+  const [exchangeRates, setExchangeRates] = useState<Record<
+    string,
+    number
+  > | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -197,7 +206,8 @@ export default function TransactionHistory() {
   const fetchTransactions = useCallback(async () => {
     try {
       const data = await getTransaction();
-      setTransactions(data);
+      // LA CORRECCIÓN ESTÁ AQUÍ
+      setTransactions(data as TransactionApi[]); 
     } catch (err) {
       console.error("Error fetching transactions:", err);
       setError(err instanceof Error ? err.message : String(err));
@@ -235,7 +245,7 @@ export default function TransactionHistory() {
   }, 0);
 
   // 2. Cálculo del Objetivo Global
-  let GLOBAL_GOAL_USD = 50000; 
+  let GLOBAL_GOAL_USD = 50000;
 
   if (transactions.length > 0) {
     const firstTransactionCard = transactions[0]?.card;
@@ -246,7 +256,7 @@ export default function TransactionHistory() {
       const rate = CONVERSION_RATES[accountCurrency] || 0;
 
       const balanceInUSD = accountBalance * rate;
-      GLOBAL_GOAL_USD = balanceInUSD * 0.1; 
+      GLOBAL_GOAL_USD = balanceInUSD * 0.1;
 
       if (GLOBAL_GOAL_USD < 1) {
         GLOBAL_GOAL_USD = 1;
@@ -271,22 +281,23 @@ export default function TransactionHistory() {
       fill: "#e5e7eb",
     },
   ];
-  
+
   // 4. Cálculo de Tendencia (Gráfico Nuevo)
   const { trend: trendData, growth: growthRates } = getTrendData(
     transactions,
     CONVERSION_RATES
   );
-  
+
   // Seleccionar la moneda a graficar (ej: la más frecuente o la que tiene data)
-  const chartCurrency = 'CUP'; // Puedes cambiar esto a 'EUR' o 'Savings'
-  const currentTrendData = trendData.filter(d => (d[chartCurrency] as number) > 0);
+  const chartCurrency = "CUP"; // Puedes cambiar esto a 'EUR' o 'Savings'
+  const currentTrendData = trendData.filter(
+    (d) => (d[chartCurrency] as number) > 0
+  );
   const chartGrowth = growthRates[chartCurrency];
-  
+
   const hasEnoughTrendData = currentTrendData.length >= 2;
   const growthColorClass = chartGrowth > 0 ? "text-green-600" : "text-red-600";
-  const growthSign = chartGrowth > 0 ? '▲' : '▼';
-
+  const growthSign = chartGrowth > 0 ? "▲" : "▼";
 
   // --- ESTADOS DE RENDERIZADO ---
   if (loading || !exchangeRates) {
@@ -321,13 +332,8 @@ export default function TransactionHistory() {
     );
   }
 
-
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      
-      {/* ------------------------------------------------------------- */}
-      {/* 1. GRÁFICO DE PROGRESO CONSOLIDADO */}
-      {/* ------------------------------------------------------------- */}
       <div className="bg-white p-6 rounded-lg shadow-lg border border-gray-100 flex flex-col items-center h-full">
         <h2 className="text-xl font-bold text-blue-700 mb-4 flex items-center">
           Progreso Consolidado Hacia Meta Global
@@ -347,7 +353,7 @@ export default function TransactionHistory() {
                 <Cell key={`cell-${index}`} fill={entry.fill} />
               ))}
             </Pie>
-            {/* RenderGlobalLabel ya está definida arriba */}
+
             <Label
               content={(props) =>
                 RenderGlobalLabel({ ...props, progressPercentage })
@@ -383,52 +389,59 @@ export default function TransactionHistory() {
           )}
         </div>
       </div>
-      
-      {/* ------------------------------------------------------------- */}
-      {/* 2. GRÁFICO DE TENDENCIA */}
-      {/* ------------------------------------------------------------- */}
-      <div className="bg-white p-6 rounded-lg shadow-lg border border-gray-100 flex flex-col items-center h-full">
-            <h2 className="text-xl font-bold text-gray-800 mb-4">
-                Tendencia Diaria de Valor de Transacciones por Moneda ({chartCurrency} en USD)
-            </h2>
-            
-            <div className="flex items-baseline mb-4">
-                <span className="text-sm text-gray-500 mr-2">Crecimiento {chartCurrency}:</span>
-                <span className={`text-2xl font-bold ${growthColorClass}`}>
-                    {hasEnoughTrendData ? `${chartGrowth.toFixed(2)}%` : 'N/A'}
-                    <span className="ml-1">{hasEnoughTrendData ? growthSign : ''}</span>
-                </span>
-            </div>
 
-            {/* Renderizado Condicional del Gráfico */}
-            {hasEnoughTrendData ? (
-                <ResponsiveContainer width="100%" height={250}>
-                    <LineChart data={currentTrendData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                        <XAxis dataKey="date" />
-                        <YAxis tickFormatter={(value) => `$${value.toFixed(0)}`} />
-                        <Tooltip 
-                            formatter={(value: number, name: string) => [`$${value.toFixed(2)}`, name]}
-                            labelFormatter={(label) => `Fecha: ${label}`}
-                        />
-                        <Legend />
-                        
-                        {/* Graficamos la moneda seleccionada */}
-                        <Line type="monotone" dataKey={chartCurrency} stroke="#8884d8" strokeWidth={3} dot={false} />
-                    </LineChart>
-                </ResponsiveContainer>
-            ) : (
-                <div className="flex justify-center items-center h-[250px] w-full border border-gray-200 rounded-lg bg-gray-50">
-                    <p className="text-gray-500 text-center p-4">
-                        Se requiere al menos 2 puntos de datos para calcular el crecimiento y la tendencia.
-                    </p>
-                </div>
-            )}
+      <div className="bg-white p-6 rounded-lg shadow-lg border border-gray-100 flex flex-col items-center h-full">
+        <h2 className="text-xl font-bold text-gray-800 mb-4">
+          Tendencia Diaria de Valor de Transacciones por Moneda ({chartCurrency}{" "}
+          en USD)
+        </h2>
+
+        <div className="flex items-baseline mb-4">
+          <span className="text-sm text-gray-500 mr-2">
+            Crecimiento {chartCurrency}:
+          </span>
+          <span className={`text-2xl font-bold ${growthColorClass}`}>
+            {hasEnoughTrendData ? `${chartGrowth.toFixed(2)}%` : "N/A"}
+            <span className="ml-1">{hasEnoughTrendData ? growthSign : ""}</span>
+          </span>
         </div>
-      
-      {/* ------------------------------------------------------------- */}
-      {/* 3. HISTORIAL DE TRANSACCIONES (Tabla) */}
-      {/* ------------------------------------------------------------- */}
+
+        {/* Renderizado Condicional del Gráfico */}
+        {hasEnoughTrendData ? (
+          <ResponsiveContainer width="100%" height={250}>
+            <LineChart data={currentTrendData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis dataKey="date" />
+              <YAxis tickFormatter={(value) => `$${value.toFixed(0)}`} />
+              <Tooltip
+                formatter={(value: number, name: string) => [
+                  `$${value.toFixed(2)}`,
+                  name,
+                ]}
+                labelFormatter={(label) => `Fecha: ${label}`}
+              />
+              <Legend />
+
+              {/* Graficamos la moneda seleccionada */}
+              <Line
+                type="monotone"
+                dataKey={chartCurrency}
+                stroke="#8884d8"
+                strokeWidth={3}
+                dot={false}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="flex justify-center items-center h-[250px] w-full border border-gray-200 rounded-lg bg-gray-50">
+            <p className="text-gray-500 text-center p-4">
+              Se requiere al menos 2 puntos de datos para calcular el
+              crecimiento y la tendencia.
+            </p>
+          </div>
+        )}
+      </div>
+
       <div className="lg:col-span-2 bg-white p-6 rounded-lg shadow">
         <h2 className="text-lg font-semibold text-gray-800 mb-4">
           Historial de Transacciones Recientes
@@ -447,9 +460,9 @@ export default function TransactionHistory() {
             </thead>
             <tbody>
               {transactions
-                .slice() // Crea una copia (IMPORTANTE para no mutar el estado)
-                .reverse() // Invierte la copia
-                .slice(0, 30) // Limita a 30 (o 10, según necesites)
+                .slice()
+                .reverse()
+                .slice(0, 30)
                 .map((tx) => {
                   if (!tx.card || !tx.card.account) {
                     return null;
