@@ -1,4 +1,5 @@
 import { Home, BarChart, Settings, CreditCard, LogOut, TrendingUp } from "lucide-react";
+import Link from "next/link";
 
 export default function Sidebar() {
   return (
@@ -54,12 +55,15 @@ export default function Sidebar() {
         </div>
 
         {/* Logout */}
+        <Link href={`/`} passHref>
         <button
+        
           className="text-gray-500 hover:text-red-600"
           title="Cerrar sesión"
         >
           <LogOut size={20} />
         </button>
+        </Link>
       </div>
     </aside>
   );
