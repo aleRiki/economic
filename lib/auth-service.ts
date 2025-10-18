@@ -84,7 +84,7 @@ export const loginUser = async (data: LoginDto): Promise<LoginResponse> => {
   }
 };
 
-// Obtener la lista de cuentas (Catch block corregido)
+
 export const getAccounts = async (): Promise<Account[]> => {
   try {
     const token =
@@ -105,7 +105,7 @@ export const getAccounts = async (): Promise<Account[]> => {
   }
 };
 
-// Obtener el Banco (Catch block corregido)
+
 export const getBank = async (): Promise<Account[]> => {
   try {
     const token =
