@@ -104,14 +104,14 @@ export const RegisterForm = () => {
         </div>
 
         <div className="mb-6">
-                   {" "}
+       
           <label
             htmlFor="rol-select"
             className="block text-sm font-medium text-gray-700 mb-2"
           >
-                        Rol:          {" "}
+            Rol: 
           </label>
-                   {" "}
+         
           <select
             id="rol-select"
             name="rol"
@@ -120,39 +120,39 @@ export const RegisterForm = () => {
             disabled={loading}
             className="w-full p-3 border border-gray-300 bg-white rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-150 appearance-none"
           >
-                        <option value="user">Usuario Estándar</option>         
-              <option value="admin">Administrador</option>         {" "}
+            <option value="user">Usuario Estándar</option>
+           <option value="admin">Administrador</option>
           </select>
-                 {" "}
+         
         </div>
-                {/* Botón de Enviar */}       {" "}
+      
         <button
           type="submit"
           disabled={loading}
           className={`w-full py-3 rounded-md text-white font-semibold transition duration-200 
-            ${
+ ${
             loading
               ? "bg-gray-400 cursor-not-allowed"
               : "bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
           }`}
         >
-                    {loading ? "Registrando..." : "Registrar"}       {" "}
+          {loading ? "Registrando..." : "Registrar"}
         </button>
-                {/* Mensajes de Respuesta */}       {" "}
+       
         {message && (
           <p className="mt-4 p-3 rounded-md bg-green-100 text-green-700 font-medium text-center border border-green-200">
-                        {message}         {" "}
+           {message}
           </p>
         )}
-               {" "}
+        
         {error && (
           <p className="mt-4 p-3 rounded-md bg-red-100 text-red-700 font-medium text-center border border-red-200">
-                        {error}         {" "}
+            {error}
           </p>
         )}
-             {" "}
+       
       </form>
-         {" "}
+      
     </div>
   );
 };
