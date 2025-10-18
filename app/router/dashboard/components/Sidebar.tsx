@@ -33,10 +33,10 @@ export default function Sidebar() {
             <TrendingUp size={20} /> Tasa de cambio
           </a>
           <a
-            href="#"
+            href="/router/dashboard/sumbank"
             className="flex items-center gap-2 text-gray-700 hover:text-blue-600"
           >
-            <Settings size={20} /> Configuración
+            <Settings size={20} /> Gestinar Cuentas y banco 
           </a>
         </nav>
       </div>
