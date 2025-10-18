@@ -1,134 +1,252 @@
 "use client";
-import { useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import {
+  DollarSign,
+  CreditCard,
+  Calendar,
+  FileText,
+  Loader2,
+} from "lucide-react";
 
-const accounts = [
-  { name: "Cuenta EUR", last4: "4821" },
-  { name: "Cuenta USD", last4: "9173" },
-  { name: "Cuenta CUP", last4: "3019" },
-];
+import { getCard, postTransaction, Card } from "@/lib/auth-service";
 
 export default function IncomeForm() {
-  const params = useSearchParams();
-  const selectedCard = params.get("card");
+  const router = useRouter();
 
-  const [cardId, setCardId] = useState(selectedCard || "");
+  const params = useSearchParams();
+  const selectedCardParam = params.get("card");
+
+  const [cards, setCards] = useState<Card[]>([]);
+  const [isCardsLoading, setIsCardsLoading] = useState(true);
+  const [cardId, setCardId] = useState("");
   const [amount, setAmount] = useState("");
   const [desc, setDesc] = useState("");
-  const [date, setDate] = useState("");
-  // Estado para mostrar mensajes de usuario (reemplazando alert())
-  const [message, setMessage] = useState<{ type: 'error' | 'success', text: string } | null>(null);
+  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault(); // Previene el envío por defecto del formulario
-    setMessage(null); // Limpia mensajes anteriores
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [message, setMessage] = useState<{
+    type: "error" | "success";
+    text: string;
+  } | null>(null);
+
+  useEffect(() => {
+    const loadCards = async () => {
+      try {
+        const fetchedCards = await getCard();
+        setCards(fetchedCards);
+
+        if (selectedCardParam) {
+          const targetCard = fetchedCards.find(
+            (c) =>
+              String(c.id) === selectedCardParam ||
+              c.number.slice(-4) === selectedCardParam
+          );
+          if (targetCard) {
+            setCardId(String(targetCard.id));
+          }
+        }
+      } catch (err: any) {
+        setMessage({
+          type: "error",
+          text: err.message || "Error al cargar las tarjetas.",
+        });
+      } finally {
+        setIsCardsLoading(false);
+      }
+    };
+    loadCards();
+  }, [selectedCardParam]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMessage(null);
 
     if (!cardId || !amount || !date) {
-      setMessage({ type: 'error', text: "Por favor completa todos los campos obligatorios." });
+      setMessage({
+        type: "error",
+        text: "Por favor completa todos los campos obligatorios.",
+      });
       return;
     }
 
-    // Aquí iría la lógica de envío de datos
-    console.log({ cardId, amount, desc, date });
-    setMessage({ type: 'success', text: "Ingreso registrado correctamente." });
+    const amountValue = parseFloat(amount);
+    if (isNaN(amountValue) || amountValue <= 0) {
+      setMessage({
+        type: "error",
+        text: "El monto debe ser un número positivo válido.",
+      });
+      return;
+    }
 
-    // Opcionalmente, puedes limpiar los campos después del éxito si fuera necesario
-    // setCardId(""); setAmount(""); setDesc(""); setDate("");
+    const transactionPayload = {
+      transactionType: "deposit" as const,
+      amount: amountValue,
+      description: desc || "Ingreso manual sin descripción",
+      cardId: Number(cardId),
+    };
+
+    setIsSubmitting(true);
+
+    try {
+      await postTransaction(transactionPayload);
+
+      setMessage({
+        type: "success",
+        text: "🎉 Ingreso registrado correctamente. Redireccionando...",
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+
+      router.push("/router/dashboard/analyti");
+    } catch (err: any) {
+      setIsSubmitting(false);
+      setMessage({
+        type: "error",
+        text:
+          err.message || "No se pudo registrar el ingreso. Inténtalo de nuevo.",
+      });
+    }
   };
 
-  const messageClasses = message 
-    ? message.type === 'error' 
-      ? "bg-red-100 border-red-400 text-red-700" 
-      : "bg-green-100 border-green-400 text-green-700"
+  const messageClasses = message
+    ? message.type === "error"
+      ? "bg-red-50 border-red-400 text-red-700"
+      : "bg-green-50 border-green-400 text-green-700"
     : "";
 
   return (
-    <div className="max-w-md mx-auto bg-white p-6 rounded-lg shadow-xl space-y-5 border border-gray-100">
-      <h2 className="text-2xl font-extrabold text-blue-700">Registrar Nuevo Ingreso</h2>
+    <div className="max-w-md mx-auto bg-white p-8 rounded-2xl shadow-2xl border border-gray-100 space-y-6">
+      <div className="flex flex-col items-center border-b pb-4">
+        <DollarSign className="w-8 h-8 text-green-600 mb-2" />
+        <h2 className="text-2xl font-bold text-gray-800">
+          Nuevo Depósito Bancario
+        </h2>
+        <p className="text-sm text-gray-500 mt-1">
+          Registre un ingreso a una de sus cuentas.
+        </p>
+      </div>
 
-      {/* Caja de mensaje para reemplazar el alert() */}
       {message && (
-        <div className={`p-3 rounded-lg border text-sm transition-all ${messageClasses}`}>
+        <div
+          className={`p-4 rounded-xl border text-sm font-medium transition-all ${messageClasses}`}
+        >
           {message.text}
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Selección de tarjeta */}
-        <div className="space-y-1">
-          <label htmlFor="card-select" className="block text-sm font-medium text-gray-700">
-            Seleccionar Cuenta <span className="text-red-500">*</span>
-          </label>
-          <select
-            id="card-select"
-            value={cardId}
-            onChange={(e) => setCardId(e.target.value)}
-            className="w-full border border-gray-300 px-4 py-2 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-150"
-            required
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* GRUPO 1: MONTO (Destacado) */}
+        <div className="space-y-2 p-4 bg-blue-50/70 rounded-xl border border-blue-100">
+          <label
+            htmlFor="amount-input"
+            className="block text-sm font-semibold text-blue-800 flex items-center"
           >
-            <option value="">-- Selecciona --</option>
-            {accounts.map((acc) => (
-              <option key={acc.last4} value={acc.last4}>
-                {acc.name} •••• {acc.last4}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Monto */}
-        <div className="space-y-1">
-          <label htmlFor="amount-input" className="block text-sm font-medium text-gray-700">
-            Monto <span className="text-red-500">*</span>
+            <DollarSign className="w-4 h-4 mr-1" />
+            Monto a Depositar <span className="text-red-500 ml-1">*</span>
           </label>
-          <input
-            id="amount-input"
-            type="number"
-            placeholder="Ej. 1500.00"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            className="w-full border border-gray-300 px-4 py-2 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-150"
-            required
-            min="0.01"
-            step="0.01"
-          />
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-2xl font-bold text-blue-900">
+              $
+            </span>
+            <input
+              id="amount-input"
+              type="number"
+              placeholder="0.00"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              className="w-full bg-white text-3xl font-extrabold text-blue-900 pl-8 pr-4 py-3 border-2 border-blue-300 rounded-xl focus:ring-blue-500 focus:border-blue-500 transition duration-150 shadow-md"
+              required
+              min="0.01"
+              step="0.01"
+              disabled={isSubmitting}
+            />
+          </div>
         </div>
 
-        {/* Descripción */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="space-y-1">
+            <label
+              htmlFor="card-select"
+              className="block text-sm font-medium text-gray-700 flex items-center"
+            >
+              <CreditCard className="w-4 h-4 mr-1 text-gray-500" />
+              Cuenta Destino <span className="text-red-500 ml-1">*</span>
+            </label>
+            <select
+              id="card-select"
+              value={cardId}
+              onChange={(e) => setCardId(e.target.value)}
+              className="w-full border border-gray-300 px-3 py-2.5 rounded-lg text-sm bg-gray-50 focus:ring-blue-500 focus:border-blue-500 transition duration-150 appearance-none"
+              required
+              disabled={isCardsLoading || isSubmitting}
+            >
+              <option value="">
+                {isCardsLoading
+                  ? "Cargando Cuentas..."
+                  : "-- Selecciona una Tarjeta --"}
+              </option>
+              {cards.map((card) => (
+                <option key={card.id} value={card.id}>
+                  {card.account.name} ({card.account.type}) ••••{" "}
+                  {card.number.slice(-4)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-1">
+            <label
+              htmlFor="date-input"
+              className="block text-sm font-medium text-gray-700 flex items-center"
+            >
+              <Calendar className="w-4 h-4 mr-1 text-gray-500" />
+              Fecha <span className="text-red-500 ml-1">*</span>
+            </label>
+            <input
+              id="date-input"
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="w-full border border-gray-300 px-3 py-2.5 rounded-lg text-sm bg-gray-50 focus:ring-blue-500 focus:border-blue-500 transition duration-150"
+              required
+              disabled={isSubmitting}
+            />
+          </div>
+        </div>
+
         <div className="space-y-1">
-          <label htmlFor="desc-input" className="block text-sm font-medium text-gray-700">
-            Descripción (Opcional)
+          <label
+            htmlFor="desc-input"
+            className="block text-sm font-medium text-gray-700 flex items-center"
+          >
+            <FileText className="w-4 h-4 mr-1 text-gray-500" />
+            Concepto / Descripción (Opcional)
           </label>
           <input
             id="desc-input"
             type="text"
-            placeholder="Ej. Depósito mensual"
+            placeholder="Ej. Transferencia de salario"
             value={desc}
             onChange={(e) => setDesc(e.target.value)}
-            className="w-full border border-gray-300 px-4 py-2 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-150"
+            className="w-full border border-gray-300 px-3 py-2.5 rounded-lg bg-gray-50 focus:ring-blue-500 focus:border-blue-500 transition duration-150"
+            disabled={isSubmitting}
           />
         </div>
 
-        {/* Fecha */}
-        <div className="space-y-1">
-          <label htmlFor="date-input" className="block text-sm font-medium text-gray-700">
-            Fecha <span className="text-red-500">*</span>
-          </label>
-          <input
-            id="date-input"
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="w-full border border-gray-300 px-4 py-2 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-150"
-            required
-          />
-        </div>
-
-        {/* Botón */}
         <button
           type="submit"
-          className="w-full bg-blue-600 text-white font-semibold py-2 rounded-lg hover:bg-blue-700 transition duration-150 shadow-md hover:shadow-lg"
+          disabled={isSubmitting || isCardsLoading || cards.length === 0}
+          className="w-full flex justify-center items-center bg-blue-600 text-white font-semibold py-3 rounded-xl hover:bg-blue-700 transition duration-150 shadow-lg hover:shadow-xl disabled:bg-gray-400 disabled:cursor-not-allowed"
         >
-          Guardar Ingreso
+          {isSubmitting ? (
+            <>
+              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+              Procesando Depósito...
+            </>
+          ) : (
+            "Confirmar Depósito"
+          )}
         </button>
       </form>
     </div>

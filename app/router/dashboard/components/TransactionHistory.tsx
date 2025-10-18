@@ -1,183 +1,254 @@
 "use client";
-import { PieChart, Pie, Cell, ResponsiveContainer, Label } from "recharts";
-import { DollarSign } from "lucide-react";
+import React, { useState, useEffect, useMemo } from "react";
+import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
+import { DollarSign, AlertTriangle, Loader2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { getAccounts, Account } from "@/lib/auth-service";
 
 // ----------------------------------------------------------------------
-// 1. TASAS DE CONVERSIÓN Y DATOS
+// 1. TASAS DE CONVERSIÓN
 // ----------------------------------------------------------------------
 
-// Definimos las tasas de conversión
-const CONVERSION_RATES = {
-    USD: 1,        // 1 USD = 1 USD
-    CUP: 1 / 490,  // 1 CUP = 0.00204 USD (1/490)
-    EUR: 1 / 0.86, // 1 EUR = 1.1628 USD (1/0.86)
+const CONVERSION_RATES: { [key: string]: number } = {
+  USD: 1,
+  CUP: 1 / 490,
+  EUR: 1 / 0.86,
+  Euro: 1 / 0.86,
+  Savings: 1,
 };
 
-// 1.1. Definimos el tipo de divisa basado en las claves de CONVERSION_RATES.
-// Esto restringe 'Currency' a ser solo 'USD' | 'CUP' | 'EUR', resolviendo el error de tipado.
-type Currency = keyof typeof CONVERSION_RATES;
-
-// 1.2. Definimos el tipo para la transacción, asegurando que 'currency' sea uno de los tipos válidos.
-type Transaction = {
-    amount: number;
-    account: string;
-    date: string;
-    currency: Currency;
+// Conversión a USD
+const convertToUSD = (amount: string, type: string): number => {
+  const value = parseFloat(amount);
+  const rate = CONVERSION_RATES[type] || 0;
+  return value * rate;
 };
 
-// Datos de transacciones (Manteniendo el valor de la moneda original)
-// Aplicamos el nuevo tipo Transaction[]
-const transactions: Transaction[] = [
-    { amount: 350, account: "Cuenta USD", date: "2023-10-24", currency: "USD" },
-    { amount: 420, account: "Cuenta USD", date: "2023-09-20", currency: "USD" },
-    { amount: 500, account: "Cuenta EUR", date: "2023-10-25", currency: "EUR" },
-    { amount: 35000, account: "Cuenta CUP", date: "2023-10-26", currency: "CUP" },
-    // Agregamos más datos para hacer la gráfica más interesante
-    { amount: 120, account: "Cuenta EUR", date: "2023-10-01", currency: "EUR" },
-    { amount: 75000, account: "Cuenta CUP", date: "2023-09-15", currency: "CUP" },
-];
-
-// Objetivo Global: La meta es el total que queremos alcanzar en USD
-const GLOBAL_GOAL_USD = 50000;
-
 // ----------------------------------------------------------------------
-// 2. CÁLCULO DE MÉTRICAS CONSOLIDADAS
+// 2. COMPONENTE PRINCIPAL
 // ----------------------------------------------------------------------
-
-// 2.1. Calcular el total de ingresos convertidos a USD
-const totalIncomeUSD = transactions.reduce((sum, tx) => {
-    // CORRECCIÓN: Gracias a 'type Transaction', TypeScript ahora sabe que tx.currency es una clave válida.
-    const rate = CONVERSION_RATES[tx.currency]; 
-    
-    // Convierte el monto a USD y lo suma al total
-    const amountInUSD = tx.amount * rate; 
-    return sum + amountInUSD;
-}, 0);
-
-
-const calculateProgress = (current: number, goal: number) => {
-    return Math.min(100, Math.round((current / goal) * 100));
-};
-
-const progressPercentage = calculateProgress(totalIncomeUSD, GLOBAL_GOAL_USD);
-const progressColor = progressPercentage >= 100 ? "#10b981" : "#2563eb"; // Verde si superó, Azul si no
-const donutData = [
-    { name: 'Progreso', value: progressPercentage, fill: progressColor },
-    { name: 'Restante', value: Math.max(0, 100 - progressPercentage), fill: '#e5e7eb' }
-];
-
-// ----------------------------------------------------------------------
-// 3. COMPONENTE PARA EL GRÁFICO CONSOLIDADO
-// ----------------------------------------------------------------------
-
-// Componente para el centro del gráfico (Muestra el % y la moneda consolidada)
-// CORRECCIÓN DE TIPADO: Aceptamos cx y cy directamente como props opcionales,
-// lo cual es lo que Recharts espera para un Label Content personalizado.
-const RenderGlobalLabel = ({ cx, cy }: { cx?: number, cy?: number }) => {
-    
-    // Si las coordenadas no están disponibles, no renderizamos para evitar errores.
-    if (cx === undefined || cy === undefined) return null; 
-
-    return (
-        <>
-            {/* Texto de la meta consolidada */}
-            <text x={cx} y={cy - 10} textAnchor="middle" dominantBaseline="central" className="text-sm fill-gray-500">
-                META GLOBAL (USD)
-            </text>
-            {/* Texto del progreso en % */}
-            <text x={cx} y={cy + 15} textAnchor="middle" dominantBaseline="central" className={`text-3xl font-bold fill-gray-800`}>
-                {progressPercentage}%
-            </text>
-        </>
-    );
-};
 
 export default function TransactionHistory() {
-    
+  const router = useRouter();
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  // Obtención de cuentas
+  useEffect(() => {
+    const fetchAccounts = async () => {
+      try {
+        const accountsData = await getAccounts();
+        const sortedAccounts = accountsData.sort(
+          (a: any, b: any) =>
+            new Date(b.createAt).getTime() - new Date(a.createAt).getTime()
+        );
+        setAccounts(sortedAccounts);
+      } catch (err: any) {
+        const message = err.message || "Error al cargar los datos financieros.";
+        if (message.includes("Token de autenticación")) {
+          router.push("/auth/login");
+          return;
+        }
+        setError(message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAccounts();
+  }, [router]);
+
+  // ----------------------------------------------------------------------
+  // 3. CÁLCULOS DE BALANCE GLOBAL
+  // ----------------------------------------------------------------------
+
+  const { totalConsolidatedUSD, globalGoalUSD, progressPercentage, donutData } =
+    useMemo(() => {
+      const accountsTotalUSD = accounts.reduce((sum, account) => {
+        return sum + convertToUSD(account.balance, account.type);
+      }, 0);
+
+      const totalConsolidatedUSD = accountsTotalUSD;
+      const globalGoalUSD = totalConsolidatedUSD * 1.2;
+      const progressPercentage = Math.min(
+        100,
+        Math.round((totalConsolidatedUSD / globalGoalUSD) * 100)
+      );
+      const progressColor = progressPercentage >= 100 ? "#10b981" : "#2563eb";
+
+      const donutData = [
+        { name: "Progreso", value: progressPercentage, fill: progressColor },
+        {
+          name: "Restante",
+          value: Math.max(0, 100 - progressPercentage),
+          fill: "#e5e7eb",
+        },
+      ];
+
+      return {
+        totalConsolidatedUSD,
+        globalGoalUSD,
+        progressPercentage,
+        donutData,
+      };
+    }, [accounts]);
+
+  // ----------------------------------------------------------------------
+  // 4. ESTADOS DE CARGA Y ERROR
+  // ----------------------------------------------------------------------
+
+  if (loading) {
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            
-            {/* GRÁFICO CONSOLIDADO DE META GLOBAL */}
-            <div className="bg-white p-6 rounded-lg shadow-lg border border-gray-100 flex flex-col items-center h-full">
-                <h2 className="text-xl font-bold text-blue-700 mb-4 flex items-center">
-                    <DollarSign className="w-5 h-5 mr-2" />
-                    Progreso Consolidado Hacia Meta Global
-                </h2>
-
-                <ResponsiveContainer width="100%" height={200}>
-                    <PieChart>
-                        <Pie
-                            data={donutData}
-                            innerRadius={70}
-                            outerRadius={100}
-                            dataKey="value"
-                            startAngle={90}
-                            endAngle={450}
-                        >
-                            {donutData.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={entry.fill} />
-                            ))}
-                        </Pie>
-                        {/* Se pasa la referencia de la función RenderGlobalLabel. */}
-                        {/* <Label content={RenderGlobalLabel} position="center" /> */}
-                    </PieChart>
-                </ResponsiveContainer>
-
-                <div className="mt-4 w-full text-center">
-                    <p className="text-sm text-gray-600">
-                        Ingreso Total (Equivalente USD): 
-                        <span className="font-bold text-gray-800 ml-1">
-                            ${totalIncomeUSD.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                        </span>
-                    </p>
-                    <p className="text-sm text-gray-600">
-                        Objetivo Global: 
-                        <span className="font-bold text-blue-600 ml-1">
-                            ${GLOBAL_GOAL_USD.toLocaleString()}
-                        </span>
-                    </p>
-                    {progressPercentage >= 100 && (
-                        <p className="text-sm font-bold text-green-600 mt-2">¡Meta Global Superada! 🎉</p>
-                    )}
-                </div>
-            </div>
-
-            {/* Historial de Transacciones (Mantenemos la tabla) */}
-            <div className="bg-white p-6 rounded-lg shadow h-full">
-                <h2 className="text-lg font-semibold text-gray-800 mb-4">Historial de Transacciones Recientes</h2>
-                
-                <div className="overflow-x-auto h-[350px]"> {/* Altura fija para alineación visual */}
-                    <table className="min-w-full text-sm">
-                        <thead>
-                            <tr className="text-left text-gray-500 border-b">
-                                <th className="py-2 px-1">Monto (Original)</th>
-                                <th className="py-2 px-1">Cuenta asociada</th>
-                                <th className="py-2 px-1">Valor en USD</th>
-                                <th className="py-2 px-1">Fecha</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {transactions.map((tx, idx) => {
-                                // El acceso a CONVERSION_RATES[tx.currency] ahora es seguro gracias a los tipos definidos
-                                const rate = CONVERSION_RATES[tx.currency];
-                                const amountInUSD = tx.amount * rate;
-                                return (
-                                    <tr key={idx} className="border-b text-gray-700 hover:bg-gray-50 transition">
-                                        <td className="py-2 px-1 font-semibold">
-                                            {tx.amount.toLocaleString('en-US', { style: 'currency', currency: tx.currency })}
-                                        </td>
-                                        <td className="py-2 px-1">{tx.account}</td>
-                                        <td className="py-2 px-1 text-xs text-blue-600 font-medium">
-                                            ${amountInUSD.toFixed(2)}
-                                        </td>
-                                        <td className="py-2 px-1">{tx.date}</td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
+      <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 flex items-center justify-center h-96">
+        <Loader2 className="w-8 h-8 text-blue-500 animate-spin mr-3" />
+        <p className="text-lg text-gray-600">Cargando datos de balance...</p>
+      </div>
     );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-red-100 p-6 rounded-xl shadow-lg border border-red-400 text-red-700 flex items-center h-60">
+        <AlertTriangle className="w-6 h-6 mr-3" />
+        <div>
+          <h2 className="font-bold">Error de Datos</h2>
+          <p className="text-sm">
+            No se pudieron cargar los balances para el gráfico. Intenta recargar.
+          </p>
+          <p className="text-xs mt-1 italic text-red-600">Detalle: {error}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ----------------------------------------------------------------------
+  // 5. RENDERIZADO PRINCIPAL
+  // ----------------------------------------------------------------------
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* GRÁFICO CONSOLIDADO */}
+      <div className="bg-white p-6 rounded-lg shadow-lg border border-gray-100 flex flex-col items-center h-full">
+        <h2 className="text-xl font-bold text-blue-700 mb-4 flex items-center">
+          <DollarSign className="w-5 h-5 mr-2" />
+          Progreso de Meta (Balance Consolidado)
+        </h2>
+
+        <ResponsiveContainer width="100%" height={220}>
+          <PieChart>
+            <Pie
+              data={donutData}
+              innerRadius={70}
+              outerRadius={100}
+              dataKey="value"
+              startAngle={90}
+              endAngle={450}
+              label={({ cx, cy }) => {
+                if (cx == null || cy == null) return null;
+                const cxNum = Number(cx);
+                const cyNum = Number(cy);
+                return (
+                  <>
+                    <text
+                      x={cxNum}
+                      y={cyNum - 10}
+                      textAnchor="middle"
+                      dominantBaseline="central"
+                      className="text-sm fill-gray-500"
+                    >
+                      META (120% USD)
+                    </text>
+                    <text
+                      x={cxNum}
+                      y={cyNum + 15}
+                      textAnchor="middle"
+                      dominantBaseline="central"
+                      className="text-3xl font-bold fill-gray-800"
+                    >
+                      {progressPercentage}%
+                    </text>
+                  </>
+                );
+              }}
+              labelLine={false}
+            >
+              {donutData.map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={entry.fill} />
+              ))}
+            </Pie>
+          </PieChart>
+        </ResponsiveContainer>
+
+        <div className="mt-4 w-full text-center">
+          <p className="text-sm text-gray-600">
+            Balance Total Consolidado (USD):
+            <span className="font-bold text-gray-800 ml-1">
+              ${totalConsolidatedUSD.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+            </span>
+          </p>
+          <p className="text-sm text-gray-600">
+            Objetivo (20% Adicional):
+            <span className="font-bold text-blue-600 ml-1">
+              ${globalGoalUSD.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+            </span>
+          </p>
+          {progressPercentage >= 100 && (
+            <p className="text-sm font-bold text-green-600 mt-2">¡Meta Lograda! 🎉</p>
+          )}
+        </div>
+      </div>
+
+      {/* TABLA DE CUENTAS */}
+      <div className="bg-white p-6 rounded-lg shadow h-full">
+        <h2 className="text-lg font-semibold text-gray-800 mb-4">
+          Registro de Cuentas Creadas
+        </h2>
+
+        <div className="overflow-x-auto h-[350px]">
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="text-left text-gray-500 border-b">
+                <th className="py-2 px-1">Nombre de Cuenta</th>
+                <th className="py-2 px-1">Tipo / Moneda</th>
+                <th className="py-2 px-1">Balance Original</th>
+                <th className="py-2 px-1">Fecha de Creación</th>
+              </tr>
+            </thead>
+            <tbody>
+              {accounts.length > 0 ? (
+                accounts.map((account: any) => (
+                  <tr
+                    key={account.id}
+                    className="border-b text-gray-700 hover:bg-gray-50 transition"
+                  >
+                    <td className="py-2 px-1 font-semibold">{account.name}</td>
+                    <td className="py-2 px-1">{account.type}</td>
+                    <td className="py-2 px-1 font-mono text-sm">
+                      {parseFloat(account.balance).toLocaleString("en-US", {
+                        minimumFractionDigits: 2,
+                      })}
+                    </td>
+                    <td className="py-2 px-1 text-xs">
+                      {new Date(account.createAt).toLocaleDateString("es-ES", {
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={4} className="py-4 text-center text-gray-500">
+                    No se encontraron cuentas registradas.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
 }

@@ -1,51 +1,187 @@
 // ./components/CurrencyDistribution.jsx
 "use client";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { useState, useEffect, useCallback } from 'react';
+import { getTransaction } from "@/lib/auth-service";  
 
-// Datos simulados: Ahora incluimos la frecuencia (num_tx) y el valor
-const data = [
-  { currency: "USD", value: 14200, num_tx: 55, color: "#2563eb" },
-  { currency: "EUR", value: 10850, num_tx: 30, color: "#10b981" },
-  { currency: "CUP", value: 250000, num_tx: 90, color: "#ef4444" },
-];
+
+
+interface ChartData {
+  currency: string;
+  value: number; 
+  num_tx: number; 
+  color: string; 
+}
+
+// Función para mapear el tipo de moneda a un color
+const getCurrencyColor = (currency: string) => {
+  switch (currency.toUpperCase()) {
+    case "USD":
+      return "#2563eb"; // Azul
+    case "EUR":
+      return "#10b981"; // Verde
+    case "CUP":
+      return "#ef4444"; // Rojo
+    default:
+      return "#6b7280"; // Gris por defecto
+  }
+};
+
+/**
+ * Procesa la lista de transacciones para agruparlas por tipo de moneda 
+ * (currency type) y calcular la suma total del valor ('value') y el conteo 
+ * de transacciones ('num_tx').
+ * @param transactions 
+ * @returns
+ */
+const aggregateTransactionData = (transactions: any[]): ChartData[] => {
+  const aggregated = transactions.reduce((acc, transaction) => {
+   
+    const currency = transaction.card?.account?.type;
+    const amount = parseFloat(transaction.amount);
+
+    if (currency && !isNaN(amount)) {
+      if (!acc[currency]) {
+        acc[currency] = {
+          currency,
+          value: 0,
+          num_tx: 0,
+          color: getCurrencyColor(currency),
+        };
+      }
+
+      acc[currency].value += amount;
+      acc[currency].num_tx += 1;
+    }
+
+    return acc;
+  }, {} as Record<string, ChartData>);
+
+  
+  return Object.values(aggregated);
+};
+
 
 export default function CurrencyDistribution() {
+  const [chartData, setChartData] = useState<ChartData[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchData = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      
+      const transactions = await getTransaction(); 
+      
+      
+      const processedData = aggregateTransactionData(transactions);
+      
+      setChartData(processedData);
+      
+    } catch (err: any) {
+      console.error("Error al obtener las transacciones:", err);
+      
+      setError(err.message || "No se pudieron cargar los datos de las transacciones.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []); 
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  if (isLoading) {
+    return (
+      <div className="bg-white p-6 rounded-lg shadow text-center text-gray-600">
+        Cargando datos de transacciones...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-red-50 p-6 rounded-lg shadow text-center text-red-600 border border-red-300">
+        ❌ Error: {error}
+      </div>
+    );
+  }
+
+  if (chartData.length === 0) {
+     return (
+      <div className="bg-white p-6 rounded-lg shadow text-center text-gray-600">
+        No hay transacciones para mostrar.
+      </div>
+    );
+  }
+
   return (
     <div className="bg-white p-6 rounded-lg shadow space-y-4">
       <h2 className="text-lg font-semibold text-gray-800">Distribución por Moneda y Frecuencia de Transacciones</h2>
 
-      {/* Indicadores de Frecuencia */}
+      
       <div className="flex justify-around text-center p-3 border-b">
-        {data.map(item => (
+        {chartData.map(item => (
             <div key={item.currency}>
                 <span className="text-xs text-gray-500 block">Transacciones {item.currency}</span>
+                
                 <p className="text-xl font-bold text-gray-800">{item.num_tx}</p>
             </div>
         ))}
       </div>
 
       <ResponsiveContainer width="100%" height={250}>
-        <BarChart data={data} margin={{ top: 20 }}>
+        <BarChart data={chartData} margin={{ top: 20 }}>
           <XAxis dataKey="currency" />
-          {/* El YAxis principal para el Valor */}
-          <YAxis yAxisId="left" orientation="left" stroke="#6366f1" label={{ value: 'Valor (Unidades)', angle: -90, position: 'insideLeft' }} />
-          {/* Un segundo YAxis para la Frecuencia */}
-          <YAxis yAxisId="right" orientation="right" stroke="#f97316" label={{ value: 'Frecuencia (N° TX)', angle: 90, position: 'insideRight' }} />
+         
+          <YAxis 
+            yAxisId="left" 
+            orientation="left" 
+            stroke="#6366f1" 
+            label={{ value: 'Valor (Unidades)', angle: -90, position: 'insideLeft' }} 
+            
+            tickFormatter={(value) => value.toLocaleString()}
+          />
+          
+          <YAxis 
+            yAxisId="right" 
+            orientation="right" 
+            stroke="#f97316" 
+            label={{ value: 'Frecuencia (N° TX)', angle: 90, position: 'insideRight' }}
+            domain={['dataMin', 'dataMax']} 
+            allowDecimals={false} 
+          />
           
           <Tooltip 
             formatter={(value, name) => {
-              if (name === "value") return [value.toLocaleString(), "Valor Acumulado"];
+              if (name === "value") return [parseFloat(value as string).toLocaleString(), "Valor Acumulado"];
               if (name === "num_tx") return [value, "Frecuencia (N° TX)"];
               return [value, name];
             }}
           />
           <Legend />
           
-          {/* Barra para el Valor Acumulado */}
-          <Bar yAxisId="left" dataKey="value" name="Valor Acumulado" fill="#2563eb" />
+       
+          {chartData.map(item => (
+            <Bar 
+              key={`value-${item.currency}`}
+              yAxisId="left" 
+              dataKey="value" 
+              name={`Valor Acumulado (${item.currency})`} 
+              fill={item.color}
+            />
+          ))}
+
+
+          <Bar 
+            yAxisId="right" 
+            dataKey="num_tx" 
+            name="Frecuencia (N° TX)" 
+            fill="#f97316" 
+            opacity={0.7} 
+          />
           
-          {/* Usamos una línea sobre las barras para la Frecuencia (concurrencia) */}
-          <Bar yAxisId="right" dataKey="num_tx" name="Frecuencia (N° TX)" fill="#f97316" opacity={0.7} />
         </BarChart>
       </ResponsiveContainer>
     </div>
