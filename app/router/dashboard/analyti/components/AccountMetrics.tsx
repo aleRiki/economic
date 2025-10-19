@@ -15,6 +15,7 @@ import {
   Legend,
 } from "recharts";
 import { getTransaction } from "@/lib/auth-service";
+import { getTasasCambio } from "@/lib/tasaCambioService";
 
 // ----------------------------------------------------------------------
 // TIPOS DE DATOS
@@ -56,15 +57,33 @@ type DailyTrendData = {
 // ----------------------------------------------------------------------
 // TASAS DE CAMBIO POR DEFECTO Y FUNCIÓN DE CARGA (SIMULADA)
 // ----------------------------------------------------------------------
+interface TasaCambio {
+  currency: string;
+  rateToUSD: number;
+}
 
 const fetchInitialRates = async (): Promise<Record<string, number>> => {
-  return {
-    USD: 1,
-    CUP: 1 / 467,
-    EUR: 1 / 0.8,
-    Savings: 1 / 250,
-    Euro: 1 / 0.8,
-  };
+  try {
+    const tasas: TasaCambio[] = await getTasasCambio();
+    console.log(tasas);
+    const ratesObject: Record<string, number> = {};
+    tasas.forEach((tasa) => {
+      ratesObject[tasa.currency] = tasa.rateToUSD;
+    });
+
+    ratesObject["USD"] = 1;
+
+    return ratesObject;
+  } catch (error) {
+    console.error("Error al obtener tasas dinámicas:", error);
+
+    return {
+      USD: 1,
+      CUP: 1 / 467,
+      EUR: 1 / 0.8,
+      Savings: 1 / 250,
+    };
+  }
 };
 
 // ----------------------------------------------------------------------
@@ -207,7 +226,7 @@ export default function TransactionHistory() {
     try {
       const data = await getTransaction();
       // LA CORRECCIÓN ESTÁ AQUÍ
-      setTransactions(data as TransactionApi[]); 
+      setTransactions(data as TransactionApi[]);
     } catch (err) {
       console.error("Error fetching transactions:", err);
       setError(err instanceof Error ? err.message : String(err));

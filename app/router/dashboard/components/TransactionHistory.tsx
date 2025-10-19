@@ -1,113 +1,136 @@
 "use client";
-import React, { useState, useEffect, useMemo } from "react";
+
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { DollarSign, AlertTriangle, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { getAccounts, Account } from "@/lib/auth-service"; // Account tipada correctamente
+import { getAccounts, Account } from "@/lib/auth-service";
+import { getTasasCambio } from "@/lib/tasaCambioService"; // 👈 Importamos la función real
 
 // ----------------------------------------------------------------------
-// 1. TASAS DE CONVERSIÓN
-// ----------------------------------------------------------------------
-
-const CONVERSION_RATES: { [key: string]: number } = {
-  USD: 1,
-  CUP: 1 / 490,
-  EUR: 1 / 0.86,
-  Euro: 1 / 0.86,
-  Savings: 1,
-};
-
-// Conversión a USD
-const convertToUSD = (amount: string, type: string): number => {
-  const value = parseFloat(amount);
-  const rate = CONVERSION_RATES[type] || 0;
-  return value * rate;
-};
-
-// ----------------------------------------------------------------------
-// 2. COMPONENTE PRINCIPAL
+// COMPONENTE PRINCIPAL
 // ----------------------------------------------------------------------
 
 export default function TransactionHistory() {
   const router = useRouter();
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [exchangeRates, setExchangeRates] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // Obtención de cuentas
-  useEffect(() => {
-    const fetchAccounts = async () => {
-      try {
-        const accountsData = await getAccounts();
-        
-        // CORRECCIÓN 1: Tipado explícito de los parámetros de ordenación
-        const sortedAccounts = accountsData.sort(
-          (a: Account, b: Account) =>
-            new Date(b.createAt).getTime() - new Date(a.createAt).getTime()
-        );
-        setAccounts(sortedAccounts);
-      } catch (err: unknown) { // 👈 CORRECCIÓN 2: Uso de 'unknown'
-        
-        const errorObject = err instanceof Error ? err : new Error("Error desconocido al cargar los datos.");
-        const message = errorObject.message || "Error al cargar los datos financieros.";
-        
-        if (message.includes("Token de autenticación")) {
-          router.push("/auth/login");
-          return;
-        }
-        setError(message);
-      } finally {
-        setLoading(false);
-      }
-    };
+  // ----------------------------------------------------------------------
+  // 1️⃣ FUNCIÓN PARA OBTENER TASAS DINÁMICAS DESDE EL BACKEND
+  // ----------------------------------------------------------------------
 
-    fetchAccounts();
+  const fetchExchangeRates = useCallback(async () => {
+    try {
+      const data = await getTasasCambio();
+
+      // Convertimos el array [{ currency, rateToUSD }, ...] a un objeto clave-valor:
+      const formattedRates: Record<string, number> = {};
+      data.forEach((item: any) => {
+        formattedRates[item.currency] = parseFloat(item.rateToUSD);
+      });
+
+      // USD siempre es base 1
+      formattedRates["USD"] = 1;
+
+      setExchangeRates(formattedRates);
+    } catch (err: unknown) {
+      console.error("Error al obtener tasas de cambio:", err);
+      setError("No se pudieron cargar las tasas de cambio del servidor.");
+    }
+  }, []);
+
+  // ----------------------------------------------------------------------
+  // 2️⃣ FUNCIÓN PARA OBTENER CUENTAS
+  // ----------------------------------------------------------------------
+
+  const fetchAccounts = useCallback(async () => {
+    try {
+      const accountsData = await getAccounts();
+
+      const sorted = accountsData.sort(
+        (a: Account, b: Account) =>
+          new Date(b.createAt).getTime() - new Date(a.createAt).getTime()
+      );
+
+      setAccounts(sorted);
+    } catch (err: unknown) {
+      console.error("Error al obtener cuentas:", err);
+      const errorMessage =
+        err instanceof Error ? err.message : "Error al cargar las cuentas.";
+      if (errorMessage.includes("Token")) router.push("/auth/login");
+      setError(errorMessage);
+    }
   }, [router]);
 
   // ----------------------------------------------------------------------
-  // 3. CÁLCULOS DE BALANCE GLOBAL
+  // 3️⃣ USEEFFECT PARA CARGAR DATOS EN PARALELO
+  // ----------------------------------------------------------------------
+
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true);
+      await Promise.all([fetchExchangeRates(), fetchAccounts()]);
+      setLoading(false);
+    };
+    loadData();
+  }, [fetchExchangeRates, fetchAccounts]);
+
+  // ----------------------------------------------------------------------
+  // 4️⃣ CONVERSIÓN A USD (USANDO TASA DINÁMICA)
+  // ----------------------------------------------------------------------
+
+  const convertToUSD = useCallback(
+    (amount: string, currencyType: string): number => {
+      const value = parseFloat(amount);
+      const rate = exchangeRates[currencyType] || 0;
+      return value * rate;
+    },
+    [exchangeRates]
+  );
+
+  // ----------------------------------------------------------------------
+  // 5️⃣ CÁLCULOS Y DATOS DEL GRÁFICO
   // ----------------------------------------------------------------------
 
   const { totalConsolidatedUSD, globalGoalUSD, progressPercentage, donutData } =
     useMemo(() => {
-      const accountsTotalUSD = accounts.reduce((sum, account) => {
-        return sum + convertToUSD(account.balance, account.type);
+      const totalUSD = accounts.reduce((sum, acc) => {
+        return sum + convertToUSD(acc.balance, acc.type);
       }, 0);
 
-      const totalConsolidatedUSD = accountsTotalUSD;
-      const globalGoalUSD = totalConsolidatedUSD * 1.2;
-      const progressPercentage = Math.min(
-        100,
-        Math.round((totalConsolidatedUSD / globalGoalUSD) * 100)
-      );
-      const progressColor = progressPercentage >= 100 ? "#10b981" : "#2563eb";
+      const goalUSD = totalUSD * 1.2;
+      const progress = Math.min(100, Math.round((totalUSD / goalUSD) * 100));
+      const progressColor = progress >= 100 ? "#10b981" : "#2563eb";
 
       const donutData = [
-        { name: "Progreso", value: progressPercentage, fill: progressColor },
+        { name: "Progreso", value: progress, fill: progressColor },
         {
           name: "Restante",
-          value: Math.max(0, 100 - progressPercentage),
+          value: Math.max(0, 100 - progress),
           fill: "#e5e7eb",
         },
       ];
 
       return {
-        totalConsolidatedUSD,
-        globalGoalUSD,
-        progressPercentage,
+        totalConsolidatedUSD: totalUSD,
+        globalGoalUSD: goalUSD,
+        progressPercentage: progress,
         donutData,
       };
-    }, [accounts]);
+    }, [accounts, convertToUSD]);
 
   // ----------------------------------------------------------------------
-  // 4. ESTADOS DE CARGA Y ERROR
+  // 6️⃣ ESTADOS DE CARGA Y ERROR
   // ----------------------------------------------------------------------
 
   if (loading) {
     return (
       <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 flex items-center justify-center h-96">
         <Loader2 className="w-8 h-8 text-blue-500 animate-spin mr-3" />
-        <p className="text-lg text-gray-600">Cargando datos de balance...</p>
+        <p className="text-lg text-gray-600">Cargando datos financieros...</p>
       </div>
     );
   }
@@ -118,17 +141,17 @@ export default function TransactionHistory() {
         <AlertTriangle className="w-6 h-6 mr-3" />
         <div>
           <h2 className="font-bold">Error de Datos</h2>
-          <p className="text-sm">
-            No se pudieron cargar los balances para el gráfico. Intenta recargar.
+          <p className="text-sm mb-1">
+            No se pudieron cargar las cuentas o tasas de cambio.
           </p>
-          <p className="text-xs mt-1 italic text-red-600">Detalle: {error}</p>
+          <p className="text-xs italic">{error}</p>
         </div>
       </div>
     );
   }
 
   // ----------------------------------------------------------------------
-  // 5. RENDERIZADO PRINCIPAL
+  // 7️⃣ RENDER PRINCIPAL
   // ----------------------------------------------------------------------
 
   return (
@@ -151,13 +174,11 @@ export default function TransactionHistory() {
               endAngle={450}
               label={({ cx, cy }) => {
                 if (cx == null || cy == null) return null;
-                const cxNum = Number(cx);
-                const cyNum = Number(cy);
                 return (
                   <>
                     <text
-                      x={cxNum}
-                      y={cyNum - 10}
+                      x={cx}
+                      y={cy =- 10}
                       textAnchor="middle"
                       dominantBaseline="central"
                       className="text-sm fill-gray-500"
@@ -165,8 +186,8 @@ export default function TransactionHistory() {
                       META (120% USD)
                     </text>
                     <text
-                      x={cxNum}
-                      y={cyNum + 15}
+                      x={cx}
+                      y={cy =+ 15}
                       textAnchor="middle"
                       dominantBaseline="central"
                       className="text-3xl font-bold fill-gray-800"
@@ -178,8 +199,8 @@ export default function TransactionHistory() {
               }}
               labelLine={false}
             >
-              {donutData.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.fill} />
+              {donutData.map((entry, i) => (
+                <Cell key={i} fill={entry.fill} />
               ))}
             </Pie>
           </PieChart>
@@ -193,13 +214,15 @@ export default function TransactionHistory() {
             </span>
           </p>
           <p className="text-sm text-gray-600">
-            Objetivo (20% Adicional):
+            Objetivo (20% adicional):
             <span className="font-bold text-blue-600 ml-1">
               ${globalGoalUSD.toLocaleString("en-US", { minimumFractionDigits: 2 })}
             </span>
           </p>
           {progressPercentage >= 100 && (
-            <p className="text-sm font-bold text-green-600 mt-2">¡Meta Lograda! 🎉</p>
+            <p className="text-sm font-bold text-green-600 mt-2">
+              ¡Meta lograda! 🎉
+            </p>
           )}
         </div>
       </div>
@@ -214,30 +237,28 @@ export default function TransactionHistory() {
           <table className="min-w-full text-sm">
             <thead>
               <tr className="text-left text-gray-500 border-b">
-                <th className="py-2 px-1">Nombre de Cuenta</th>
-                <th className="py-2 px-1">Tipo / Moneda</th>
-                <th className="py-2 px-1">Balance Original</th>
-                <th className="py-2 px-1">Fecha de Creación</th>
+                <th className="py-2 px-1">Nombre</th>
+                <th className="py-2 px-1">Moneda</th>
+                <th className="py-2 px-1">Balance</th>
+                <th className="py-2 px-1">Creada</th>
               </tr>
             </thead>
             <tbody>
               {accounts.length > 0 ? (
-                // CORRECCIÓN 3 & 4: Tipado explícito de Account en el map
-                accounts.map((account: Account) => (
+                accounts.map((a) => (
                   <tr
-                    key={account.id}
+                    key={a.id}
                     className="border-b text-gray-700 hover:bg-gray-50 transition"
                   >
-                    <td className="py-2 px-1 font-semibold">{account.name}</td>
-                    <td className="py-2 px-1">{account.type}</td>
+                    <td className="py-2 px-1 font-semibold">{a.name}</td>
+                    <td className="py-2 px-1">{a.type}</td>
                     <td className="py-2 px-1 font-mono text-sm">
-                      {/* Asumiendo que balance es string o number, toLocaleString es seguro */}
-                      {parseFloat(account.balance).toLocaleString("en-US", {
+                      {parseFloat(a.balance).toLocaleString("en-US", {
                         minimumFractionDigits: 2,
                       })}
                     </td>
                     <td className="py-2 px-1 text-xs">
-                      {new Date(account.createAt).toLocaleDateString("es-ES", {
+                      {new Date(a.createAt).toLocaleDateString("es-ES", {
                         year: "numeric",
                         month: "short",
                         day: "numeric",

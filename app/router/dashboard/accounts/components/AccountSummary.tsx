@@ -1,170 +1,151 @@
 "use client";
+
 import { useState, useEffect, useCallback } from "react";
-// Asumiendo que getCard ya tiene sus tipos definidos en tu archivo de servicio
 import { getCard, Card } from "@/lib/auth-service";
-// Importamos la función de la API de tasas (debes implementarla)
-// import { getExchangeRates } from "@/lib/exchange-service"; 
+import { getTasasCambio } from "@/lib/tasaCambioService";
 
-// ----------------------------------------------------------------------
-// TASAS DE CAMBIO POR DEFECTO Y SIMULACIÓN DE CARGA
-// ----------------------------------------------------------------------
-
-// Simulación de una función de API para obtener las tasas
-const fetchInitialRates = async (): Promise<Record<string, number>> => {
-    // Aquí es donde harías un axios.get('/api/rates')
-    // Por ahora, devolvemos la constante inicial:
-    return {
-        USD: 1,
-        CUP: 1 / 467,
-        EUR: 1 / 0.80,
-        Savings: 1 / 250, 
-        Euro: 1 / 0.80, 
-    };
-};
-
-
-// ----------------------------------------------------------------------
-// COMPONENTE PRINCIPAL: AccountSummary
-// ----------------------------------------------------------------------
+interface ExchangeRate {
+  id: number;
+  currency: string;
+  rateToUSD: string | number;
+}
 
 export default function AccountSummary() {
-    const [cards, setCards] = useState<Card[]>([]);
-    // 💥 NUEVO ESTADO: Almacena las tasas de cambio cargadas
-    const [exchangeRates, setExchangeRates] = useState<Record<string, number> | null>(null);
-    
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+  const [cards, setCards] = useState<Card[]>([]);
+  const [exchangeRates, setExchangeRates] = useState<Record<string, number>>({});
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-    // ----------------------------------------------------------------------
-    // 1. FUNCIONES DE CARGA (Rates y Cards)
-    // ----------------------------------------------------------------------
+  // -------------------------------------------------------
+  // 🔹 Cargar tasas de cambio desde el backend
+  // -------------------------------------------------------
+  const fetchRates = useCallback(async () => {
+    try {
+      const ratesData: ExchangeRate[] = await getTasasCambio();
 
-    const fetchRates = useCallback(async () => {
-        try {
-            const ratesData = await fetchInitialRates(); // Reemplazar con getExchangeRates() real
-            setExchangeRates(ratesData);
-        } catch (err: unknown) { // 👈 CORRECCIÓN 1 (Línea 46:23)
-            console.error("Error al obtener las tasas de cambio:", err);
-            
-            // Extraer el mensaje de error de forma segura
-            const errorMessage = (err instanceof Error) 
-                ? err.message 
-                : "Error al cargar las tasas de cambio.";
-                
-            setError(errorMessage);
-        }
-    }, []);
-
-    const fetchCards = useCallback(async () => {
-        try {
-            const data = await getCard();
-            setCards(data);
-        } catch (err: unknown) { // 👈 CORRECCIÓN 2 (Línea 56:23)
-            console.error("Error al obtener las tarjetas:", err);
-            
-            // Extraer el mensaje de error de forma segura
-            const errorMessage = (err instanceof Error)
-                ? err.message
-                : "Error desconocido al cargar el resumen de cuentas.";
-                
-            setError(errorMessage);
-        }
-    }, []);
-
-    // ----------------------------------------------------------------------
-    // 2. EJECUTAR CARGA
-    // ----------------------------------------------------------------------
-    useEffect(() => {
-        const loadData = async () => {
-            setIsLoading(true);
-            setError(null);
-            
-            // Cargar tasas y tarjetas en paralelo
-            await Promise.all([fetchRates(), fetchCards()]);
-            
-            setIsLoading(false);
-        };
-        loadData();
-    }, [fetchRates, fetchCards]);
-
-
-    // ----------------------------------------------------------------------
-    // 3. CÁLCULO DINÁMICO del total consolidado en USD
-    // ----------------------------------------------------------------------
-    const totalBalanceUSD = cards.reduce((sum, card) => {
-        // Si las tasas no se han cargado, o hay un error, el cálculo es 0.
-        if (!exchangeRates) return sum; 
-        
-        const cardBalanceStr = card.balance; 
-        
-        // Obtenemos el tipo de divisa (que es la clave en exchangeRates)
-        const currencyType = card.account.type; 
-        
-        const balanceNum = parseFloat(cardBalanceStr) || 0;
-
-        // 💥 USAMOS EL ESTADO DE exchangeRates EN LUGAR DE LA CONSTANTE FIJA
-        const rate = exchangeRates[currencyType]; 
-        
-        // Si no existe la tasa, asumimos que es USD (rate = 1) o la ignoramos (rate = 0), 
-        // dependiendo de la lógica de negocio. Aquí usamos el valor de la tasa, o 1 si no se encuentra.
-        const effectiveRate = rate !== undefined ? rate : 1;
-        
-        const balanceInUSD = balanceNum * effectiveRate;
-
-        return sum + balanceInUSD;
-    }, 0);
-
-    // ----------------------------------------------------------------------
-    // RENDERIZADO (Se mantiene igual)
-    // ----------------------------------------------------------------------
-
-    if (isLoading || !exchangeRates) {
-        return (
-            <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 animate-pulse">
-                <h2 className="text-lg font-semibold text-gray-400 mb-2">
-                    Total acumulado
-                </h2>
-                <div className="h-8 bg-gray-200 rounded w-3/4"></div>
-            </div>
+      // Convertimos el arreglo a un objeto tipo { EUR: 0.8, CUP: 0.0022, ... }
+      const formattedRates: Record<string, number> = {};
+      ratesData.forEach((r) => {
+        formattedRates[r.currency.toUpperCase()] = parseFloat(
+          String(r.rateToUSD)
         );
-    }
+      });
 
-    if (error) {
-        return (
-            <div className="bg-red-50 p-6 rounded-xl shadow-lg border border-red-300">
-                <h2 className="text-lg font-semibold text-red-700 mb-2">
-                    Error de Carga
-                </h2>
-                <p className="text-sm text-red-600">{error}</p>
-            </div>
-        );
+      setExchangeRates(formattedRates);
+    } catch (err: unknown) {
+      console.error("❌ Error al obtener tasas de cambio:", err);
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : "Error al cargar las tasas de cambio.";
+      setError(errorMessage);
     }
-    
-    if (cards.length === 0 && totalBalanceUSD === 0) {
-        return (
-            <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-                <h2 className="text-lg font-semibold text-gray-800 mb-2">
-                    Total acumulado
-                </h2>
-                <p className="text-lg text-gray-500">
-                    No hay cuentas registradas.
-                </p>
-            </div>
-        );
-    }
+  }, []);
 
+  // -------------------------------------------------------
+  // 🔹 Cargar tarjetas del usuario
+  // -------------------------------------------------------
+  const fetchCards = useCallback(async () => {
+    try {
+      const data = await getCard();
+      setCards(data);
+    } catch (err: unknown) {
+      console.error("❌ Error al obtener las tarjetas:", err);
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : "Error desconocido al cargar las tarjetas.";
+      setError(errorMessage);
+    }
+  }, []);
+
+  // -------------------------------------------------------
+  // 🔹 Cargar tasas y tarjetas en paralelo al iniciar
+  // -------------------------------------------------------
+  useEffect(() => {
+    const loadData = async () => {
+      setIsLoading(true);
+      setError(null);
+      await Promise.all([fetchRates(), fetchCards()]);
+      setIsLoading(false);
+    };
+    loadData();
+  }, [fetchRates, fetchCards]);
+
+  // -------------------------------------------------------
+  // 🔹 Cálculo total en USD usando tasas dinámicas
+  // -------------------------------------------------------
+  const totalBalanceUSD = cards.reduce((sum, card) => {
+    const currencyType = card.account.type.toUpperCase();
+    const balanceNum = parseFloat(card.balance) || 0;
+
+    // Buscar la tasa desde el backend, o asumir 1 si no existe
+    const rate = exchangeRates[currencyType] ?? 1;
+    const balanceInUSD = balanceNum * rate;
+
+    return sum + balanceInUSD;
+  }, 0);
+
+  // -------------------------------------------------------
+  // 🔹 Renderizado
+  // -------------------------------------------------------
+  if (isLoading) {
     return (
-        <div className="bg-white p-6 rounded-xl shadow-xl border border-gray-100">
-            <h2 className="text-lg font-semibold text-gray-800 mb-2">
-                Total Consolidado (USD)
-            </h2>
-            <p className="text-3xl font-bold text-blue-700">
-                $
-                {totalBalanceUSD.toLocaleString("en-US", {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                })}
-            </p>
-        </div>
+      <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 animate-pulse">
+        <h2 className="text-lg font-semibold text-gray-400 mb-2">
+          Total acumulado
+        </h2>
+        <div className="h-8 bg-gray-200 rounded w-3/4"></div>
+      </div>
     );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-red-50 p-6 rounded-xl shadow-lg border border-red-300">
+        <h2 className="text-lg font-semibold text-red-700 mb-2">
+          Error de Carga
+        </h2>
+        <p className="text-sm text-red-600">{error}</p>
+      </div>
+    );
+  }
+
+  if (cards.length === 0) {
+    return (
+      <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+        <h2 className="text-lg font-semibold text-gray-800 mb-2">
+          Total acumulado
+        </h2>
+        <p className="text-lg text-gray-500">No hay cuentas registradas.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white p-6 rounded-xl shadow-xl border border-gray-100">
+      <h2 className="text-lg font-semibold text-gray-800 mb-2">
+        Total Consolidado (USD)
+      </h2>
+      <p className="text-3xl font-bold text-blue-700">
+        $
+        {totalBalanceUSD.toLocaleString("en-US", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}
+      </p>
+
+      <div className="mt-4 text-sm text-gray-600">
+        <h3 className="font-semibold mb-1">Tasas de cambio activas:</h3>
+        <ul className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          {Object.entries(exchangeRates).map(([key, value]) => (
+            <li key={key} className="flex justify-between border-b py-1">
+              <span>{key}</span>
+              <span className="font-medium">{value}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
 }

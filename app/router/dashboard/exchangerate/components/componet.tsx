@@ -5,7 +5,9 @@ import {
   createTasaCambio,
   getTasasCambio,
   deleteTasaCambio,
+  updateTasaCambio,
 } from "@/lib/tasaCambioService";
+import { Edit, Trash2, Check, X } from "lucide-react";
 
 interface Tasa {
   id: number;
@@ -20,13 +22,15 @@ export default function ExchangeRates() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [editId, setEditId] = useState<number | null>(null);
+  const [editRate, setEditRate] = useState<string>("");
 
   const loadTasas = async () => {
     try {
       setLoading(true);
       const data = await getTasasCambio();
       setTasas(data);
-    } catch (err) {
+    } catch {
       setError("Error al cargar las tasas de cambio");
     } finally {
       setLoading(false);
@@ -72,6 +76,35 @@ export default function ExchangeRates() {
       await loadTasas();
     } catch {
       setError("Error al eliminar la tasa");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEdit = (tasa: Tasa) => {
+    setEditId(tasa.id);
+    setEditRate(String(tasa.rateToUSD));
+  };
+
+  const handleCancelEdit = () => {
+    setEditId(null);
+    setEditRate("");
+  };
+
+  const handleUpdate = async (id: number) => {
+    if (!editRate) {
+      setError("La tasa no puede estar vacía.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await updateTasaCambio(id, { rateToUSD: parseFloat(editRate) });
+      setMessage("Tasa de cambio actualizada correctamente");
+      setEditId(null);
+      await loadTasas();
+    } catch {
+      setError("Error al actualizar la tasa");
     } finally {
       setLoading(false);
     }
@@ -146,17 +179,70 @@ export default function ExchangeRates() {
           </thead>
           <tbody>
             {tasas.map((tasa) => (
-              <tr key={tasa.id} className="hover:bg-gray-50">
-                <td className="p-3 border-b font-medium">{tasa.currency}</td>
-                <td className="p-3 border-b">{tasa.rateToUSD}</td>
-                <td className="p-3 border-b text-center">
-                  <button
-                    onClick={() => handleDelete(tasa.id)}
-                    className="text-red-600 hover:text-red-800 font-semibold"
-                    disabled={loading}
-                  >
-                    Eliminar
-                  </button>
+              <tr
+                key={tasa.id}
+                className="hover:bg-gray-50 transition-colors duration-200"
+              >
+                <td className="p-3 border-b font-medium text-gray-800">
+                  {tasa.currency}
+                </td>
+
+                {/* Si está en modo edición */}
+                <td className="p-3 border-b text-gray-700">
+                  {editId === tasa.id ? (
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={editRate}
+                      onChange={(e) => setEditRate(e.target.value)}
+                      className="border border-gray-300 rounded-md px-2 py-1 w-24 text-center focus:ring-2 focus:ring-amber-500 outline-none"
+                    />
+                  ) : (
+                    tasa.rateToUSD
+                  )}
+                </td>
+
+                <td className="p-3 border-b text-center space-x-2">
+                  {editId === tasa.id ? (
+                    <>
+                      <button
+                        onClick={() => handleUpdate(tasa.id)}
+                        disabled={loading}
+                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:ring-2 focus:ring-green-400"
+                      >
+                        <Check size={16} />
+                        Guardar
+                      </button>
+                      <button
+                        onClick={handleCancelEdit}
+                        disabled={loading}
+                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium text-white bg-gray-500 hover:bg-gray-600"
+                      >
+                        <X size={16} />
+                        Cancelar
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => handleEdit(tasa)}
+                        disabled={loading}
+                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium text-white bg-amber-500 hover:bg-amber-600 focus:ring-2 focus:ring-amber-400"
+                      >
+                        <Edit size={16} />
+                        Cambiar
+                      </button>
+
+                      <button
+                        onClick={() => handleDelete(tasa.id)}
+                        disabled={loading}
+                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:ring-2 focus:ring-red-400"
+                      >
+                        <Trash2 size={16} />
+                        Eliminar
+                      </button>
+                    </>
+                  )}
                 </td>
               </tr>
             ))}

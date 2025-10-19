@@ -21,9 +21,19 @@ export const getTasaByCurrency = async (currency: string) => {
 };
 
 // Actualizar una tasa
-export const updateTasaCambio = async (id: number, data: { rateToUSD: number }) => {
-  const response = await axios.patch(`${API_BASE_URL}/tasa-cambio/${id}`, data);
-  return response.data;
+export const updateTasaCambio = async (
+  id: number,
+  data: { rateToUSD: number }
+) => {
+  try {
+    const response = await axios.patch(`${API_BASE_URL}/tasa-cambio/${id}`, data);
+    return response.data;
+  } catch (error: any) {
+    console.error("❌ Error al actualizar la tasa de cambio:", error.response?.data || error.message);
+    throw new Error(
+      error.response?.data?.message || "Error al actualizar la tasa de cambio"
+    );
+  }
 };
 
 // Eliminar tasa
