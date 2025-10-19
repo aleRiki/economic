@@ -222,3 +222,7 @@ export const getTazadeCambio = async (): Promise<unknown> => {
     throw new Error("Error desconocido al obtener la tasa de cambio.");
   }
 };
+export const getTasasCambio = async () => {
+  const response = await axios.get(`${API_BASE_URL}/tasa-cambio`);
+  return response.data;
+};
