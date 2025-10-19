@@ -2,8 +2,8 @@
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { useState, useEffect, useCallback } from "react";
-import axios, { AxiosError } from "axios"; // 👈 Importamos AxiosError
-// Importamos Trash2 para el icono de eliminar
+import axios from "axios"; 
+
 import { Plus, CreditCard, Trash2, Loader2 } from "lucide-react";
 
 // -----------------------------------------------------------

@@ -7,10 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";   
 import { Label } from "@/components/ui/label";   
 import { CreditCard, Loader2, CheckCircle, XCircle } from "lucide-react";
-import { AxiosError } from "axios"; // 👈 Importamos AxiosError para un mejor tipado
 
 // URL base de la API (Asegúrate de que esta constante sea accesible)
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
 // --- TIPOS ---
 type FormData = {

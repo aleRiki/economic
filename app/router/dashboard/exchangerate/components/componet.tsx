@@ -6,9 +6,11 @@ import {
   getTasasCambio,
   deleteTasaCambio,
   updateTasaCambio,
+  type TasaCambio, // ✅ Importamos el tipo desde el servicio
 } from "@/lib/tasaCambioService";
 import { Edit, Trash2, Check, X } from "lucide-react";
 
+// Estado local con id obligatorio
 interface Tasa {
   id: number;
   currency: string;
@@ -28,8 +30,17 @@ export default function ExchangeRates() {
   const loadTasas = async () => {
     try {
       setLoading(true);
-      const data = await getTasasCambio();
-      setTasas(data);
+      const rawData: TasaCambio[] = await getTasasCambio();
+
+      const safeData: Tasa[] = rawData
+        .filter((tasa): tasa is Tasa & { id: number } => typeof tasa.id === "number")
+        .map((tasa) => ({
+          id: tasa.id,
+          currency: tasa.currency,
+          rateToUSD: tasa.rateToUSD,
+        }));
+
+      setTasas(safeData);
     } catch {
       setError("Error al cargar las tasas de cambio");
     } finally {
@@ -116,7 +127,6 @@ export default function ExchangeRates() {
         💱 Gestión de Tasas de Cambio
       </h2>
 
-      {/* Mensajes */}
       {error && (
         <div className="mb-3 p-3 bg-red-100 border border-red-300 text-red-700 rounded-md text-sm">
           {error}
@@ -128,11 +138,7 @@ export default function ExchangeRates() {
         </div>
       )}
 
-      {/* Formulario */}
-      <form
-        onSubmit={handleCreate}
-        className="flex flex-col sm:flex-row gap-3 mb-6"
-      >
+      <form onSubmit={handleCreate} className="flex flex-col sm:flex-row gap-3 mb-6">
         <input
           type="text"
           placeholder="Moneda (Ej: EUR)"
@@ -152,22 +158,17 @@ export default function ExchangeRates() {
           type="submit"
           disabled={loading}
           className={`px-4 py-2 rounded-md text-white font-semibold ${
-            loading
-              ? "bg-gray-400 cursor-not-allowed"
-              : "bg-blue-600 hover:bg-blue-700"
+            loading ? "bg-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
           }`}
         >
           {loading ? "Guardando..." : "Agregar"}
         </button>
       </form>
 
-      {/* Tabla */}
       {loading ? (
         <p className="text-gray-500 text-center">Cargando tasas...</p>
       ) : tasas.length === 0 ? (
-        <p className="text-gray-500 text-center">
-          No hay tasas de cambio registradas.
-        </p>
+        <p className="text-gray-500 text-center">No hay tasas de cambio registradas.</p>
       ) : (
         <table className="w-full border border-gray-200 text-left">
           <thead className="bg-gray-100">
@@ -179,15 +180,8 @@ export default function ExchangeRates() {
           </thead>
           <tbody>
             {tasas.map((tasa) => (
-              <tr
-                key={tasa.id}
-                className="hover:bg-gray-50 transition-colors duration-200"
-              >
-                <td className="p-3 border-b font-medium text-gray-800">
-                  {tasa.currency}
-                </td>
-
-                {/* Si está en modo edición */}
+              <tr key={tasa.id} className="hover:bg-gray-50 transition-colors duration-200">
+                <td className="p-3 border-b font-medium text-gray-800">{tasa.currency}</td>
                 <td className="p-3 border-b text-gray-700">
                   {editId === tasa.id ? (
                     <input
@@ -201,7 +195,6 @@ export default function ExchangeRates() {
                     tasa.rateToUSD
                   )}
                 </td>
-
                 <td className="p-3 border-b text-center space-x-2">
                   {editId === tasa.id ? (
                     <>
@@ -232,7 +225,6 @@ export default function ExchangeRates() {
                         <Edit size={16} />
                         Cambiar
                       </button>
-
                       <button
                         onClick={() => handleDelete(tasa.id)}
                         disabled={loading}
