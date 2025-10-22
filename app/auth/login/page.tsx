@@ -1,5 +1,5 @@
-import { LoginForm } from "../components/LoginForm";
+import { CipherAccessPortal} from "../components/LoginForm";
 
 export default function LoginPage() {
-  return <LoginForm />;
+  return <CipherAccessPortal />;
 }
