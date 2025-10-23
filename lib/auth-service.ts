@@ -40,6 +40,7 @@ export interface TransactionData {
 export interface LoginResponse {
   token: string;
   email: string;
+  name: string;
 }
 
 export interface PostResponse {
@@ -63,13 +64,13 @@ export const registerUser = async (data: RegisterDto) => {
 export const loginUser = async (data: LoginDto): Promise<LoginResponse> => {
   try {
     const response = await axios.post(`${API_BASE_URL}/auth/login`, data);
-    const { token, email } = response.data;
+    const { token, email, name } = response.data;
 
     if (typeof window !== "undefined") {
       localStorage.setItem("authToken", token);
     }
 
-    return { token, email };
+    return { token, email,name };
   } catch (error) {
     if (axios.isAxiosError(error)) {
       throw error.response?.data || new Error("No se pudo iniciar sesión.");
@@ -77,8 +78,23 @@ export const loginUser = async (data: LoginDto): Promise<LoginResponse> => {
     throw new Error("Error desconocido al iniciar sesión.");
   }
 };
+export const getInitialAndName = () => {
+  if (typeof window === "undefined") {
+    return { initial: '?', name: 'Cargando...' };
+  }
+  
+  const userName = localStorage.getItem("email");
+ 
+  if (userName) {
+    
+    const initial = userName.charAt(0).toUpperCase();
+    return { initial, name: userName };
+  }
 
-
+  
+  return { initial: 'U', name: 'Usuario' };
+};
+console.log(getInitialAndName)
 export const getAccounts = async (): Promise<Account[]> => {
   try {
     const token =

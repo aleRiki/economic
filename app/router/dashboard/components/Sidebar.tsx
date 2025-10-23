@@ -1,7 +1,49 @@
-import { Home, BarChart, Settings, CreditCard, LogOut, TrendingUp } from "lucide-react";
-import Link from "next/link";
+"use client";
+import React, { useState, useEffect } from "react";
+import {
+  Home,
+  BarChart,
+  Settings,
+  CreditCard,
+  LogOut,
+  TrendingUp,
+} from "lucide-react";
+
+
+const getUserInfo = () => {
+  
+  if (typeof window === "undefined") {
+    return { initial: "...", name: "Cargando..." };
+  }
+
+  // Obtener el nombre guardado en el login
+  const userName = localStorage.getItem("email") || "Usuario";
+
+  // Obtener la primera letra para el avatar
+  const initial = userName.charAt(0).toUpperCase();
+
+  return { initial, name: userName };
+};
+console.log(getUserInfo)
+// --- Manejador de Logout ---
+const handleLogout = () => {
+  if (typeof window !== "undefined") {
+    localStorage.removeItem("authToken");
+    localStorage.removeItem("userName");
+   
+    window.location.href = "/";
+  }
+};
 
 export default function Sidebar() {
+  const [userInfo, setUserInfo] = useState({ initial: "A", name: "Alejandro" });
+
+ 
+  useEffect(() => {
+    const data = getUserInfo();
+    setUserInfo(data);
+  }, []); 
+
   return (
     <aside className="w-64 bg-white shadow h-full flex flex-col justify-between">
       {/* Título */}
@@ -36,34 +78,37 @@ export default function Sidebar() {
             href="/router/dashboard/sumbank"
             className="flex items-center gap-2 text-gray-700 hover:text-blue-600"
           >
-            <Settings size={20} /> Gestinar Cuentas y banco 
+            <Settings size={20} /> Gestinar Cuentas y banco
           </a>
         </nav>
       </div>
 
-      {/* Usuario y logout */}
+      {/* ====================================================
+        USUARIO Y LOGOUT (CON LA INFORMACIÓN DINÁMICA)
+        ====================================================
+      */}
       <div className="px-4 py-6 border-t border-gray-200 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          {/* Avatar */}
+          {/* Avatar (Muestra la INICIAL del usuario) */}
           <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-800 font-bold">
-            A
+            {userInfo.initial} {/* <-- DINÁMICO */}
           </div>
           <div>
-            <p className="text-sm font-semibold text-gray-800">Alejandro</p>
+            {/* Nombre (Muestra el NOMBRE del usuario) */}
+            <p className="text-sm font-semibold text-gray-800">
+              {userInfo.name}
+            </p>
             <p className="text-xs text-gray-500">Activo</p>
           </div>
         </div>
 
-        {/* Logout */}
-        <Link href={`/`} passHref>
         <button
-        
+          onClick={handleLogout}
           className="text-gray-500 hover:text-red-600"
           title="Cerrar sesión"
         >
           <LogOut size={20} />
         </button>
-        </Link>
       </div>
     </aside>
   );
