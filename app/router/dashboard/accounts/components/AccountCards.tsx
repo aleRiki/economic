@@ -2,12 +2,12 @@
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { useState, useEffect, useCallback } from "react";
-import axios from "axios"; 
+import axios from "axios";
 
 import { Plus, CreditCard, Trash2, Loader2 } from "lucide-react";
 
 // -----------------------------------------------------------
-// CONFIGURACIÓN Y TIPOS (Mantenidos)
+// CONFIGURACIÓN Y TIPOS
 // -----------------------------------------------------------
 
 const API_BASE_URL =
@@ -16,12 +16,14 @@ const API_BASE_URL =
 type CardData = {
   id: number;
   number: string;
+  // ✅ CORRECCIÓN DE TIPO: 'balance' se declara aquí, al mismo nivel que 'account'.
+  balance: string;
   account: {
     id: number;
     name: string;
     type: string;
     currency: string;
-    balance: string;
+    // 'balance' fue eliminado de aquí.
     bank?: string;
     createAt?: string;
     deletedAt?: null;
@@ -30,7 +32,7 @@ type CardData = {
 };
 
 // -----------------------------------------------------------
-// FUNCIONES API
+// FUNCIONES API (Mantenidas)
 // -----------------------------------------------------------
 
 export const getCard = async (): Promise<CardData[]> => {
@@ -50,28 +52,23 @@ export const getCard = async (): Promise<CardData[]> => {
 
     return response.data;
   } catch (error: unknown) {
-    // 👈 CORRECCIÓN 1 (Línea 53:37)
-    // Se usa 'unknown' y se verifica si es un AxiosError
     if (axios.isAxiosError(error)) {
       if (error.response?.status === 401) {
         throw new Error("Token de autenticación expirado o inválido.");
       }
 
-      // Lanzamos el mensaje del backend o un error genérico de la petición
       throw (
         error.response?.data?.message ||
         new Error("Error al obtener las tarjetas.")
       );
     }
 
-    // Si no es un AxiosError, lanzamos el error original o uno genérico.
     throw error instanceof Error
       ? error
       : new Error("Error desconocido al obtener las tarjetas.");
   }
 };
 
-// 💥 NUEVA FUNCIÓN: deleteCard
 export const deleteCard = async (cardId: number): Promise<void> => {
   try {
     const token =
@@ -86,12 +83,9 @@ export const deleteCard = async (cardId: number): Promise<void> => {
       },
     });
   } catch (error: unknown) {
-    // 👈 CORRECCIÓN 2 (Línea 82:33)
-
     let errorMessage = `Error al eliminar la tarjeta con ID ${cardId}.`;
 
     if (axios.isAxiosError(error)) {
-      // Lanzamos el mensaje del backend o el mensaje de Axios
       errorMessage = error.response?.data?.message || error.message;
     } else if (error instanceof Error) {
       errorMessage = error.message;
@@ -102,10 +96,9 @@ export const deleteCard = async (cardId: number): Promise<void> => {
 };
 
 // -----------------------------------------------------------
-// LÓGICA DE ESTILOS Y AUXILIARES (Mantenidos)
+// LÓGICA DE ESTILOS Y AUXILIARES (Mantenidas)
 // -----------------------------------------------------------
 const cardStylesByType: Record<string, string> = {
-  // ... (código existente de estilos)
   Euro: "bg-gradient-to-br from-yellow-500 to-amber-700 text-white",
   USD: "bg-gradient-to-br from-gray-300 to-gray-500 text-gray-900",
   CUP: "bg-gradient-to-br from-orange-800 to-red-900 text-white",
@@ -162,7 +155,6 @@ export default function AccountCards() {
   const [cards, setCards] = useState<CardData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // Estado para manejar qué tarjeta se está eliminando (para deshabilitar el botón)
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const fetchCards = useCallback(async () => {
@@ -187,9 +179,7 @@ export default function AccountCards() {
     fetchCards();
   }, [fetchCards]);
 
-  // 💥 FUNCIÓN PARA MANEJAR LA ELIMINACIÓN
   const handleDelete = async (cardId: number) => {
-    // Opcional: Confirmación con el usuario antes de eliminar
     if (
       !window.confirm(
         "¿Estás seguro de que quieres eliminar esta tarjeta? Esta acción no se puede deshacer."
@@ -203,14 +193,8 @@ export default function AccountCards() {
 
     try {
       await deleteCard(cardId);
-
-      // 1. Actualizar el estado local (filtrar la tarjeta eliminada)
       setCards((prevCards) => prevCards.filter((card) => card.id !== cardId));
-
-      // 2. Mostrar notificación de éxito (usa 'toast' si está implementado)
-      // toast({ title: "Tarjeta Eliminada", description: "La tarjeta fue eliminada correctamente.", variant: "default" });
     } catch (err: unknown) {
-      // 👈 CORRECCIÓN 3 (Línea 178:19)
       console.error("Error al eliminar:", err);
 
       let errorMessage = "Error al eliminar la tarjeta.";
@@ -220,8 +204,6 @@ export default function AccountCards() {
       }
 
       setError(errorMessage);
-      // Mostrar notificación de error
-      // toast({ title: "Error", description: errorMessage, variant: "destructive" });
     } finally {
       setDeletingId(null);
     }
@@ -229,9 +211,7 @@ export default function AccountCards() {
 
   // --- Estados de Presentación (Mantenidos) ---
   if (loading) {
-    /* ... (código de loading) ... */
     return (
-      // ... (código de loading) ...
       <div className="text-center p-8 text-gray-500 min-h-[300px] flex items-center justify-center">
         <div
           className="animate-spin inline-block w-8 h-8 border-[3px] border-current border-t-transparent text-blue-500 rounded-full"
@@ -245,9 +225,7 @@ export default function AccountCards() {
   }
 
   if (error) {
-    /* ... (código de error) ... */
     return (
-      // ... (código de error) ...
       <div
         className="p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg"
         role="alert"
@@ -283,7 +261,14 @@ export default function AccountCards() {
             const cardType = account.type;
             const style =
               cardStylesByType[cardType] || cardStylesByType.DEFAULT;
-            const balanceValue = parseFloat(account.balance) || 0;
+
+            // 🎯 CORRECCIÓN CLAVE: El balance se obtiene directamente de 'card'.
+            const rawBalance = card.balance;
+
+            // ✅ Parseo seguro del balance.
+            const balanceValue =
+              parseFloat(String(rawBalance).replace(/,/g, "")) || 0;
+
             const textColor =
               cardType === "USD" ? "text-gray-900" : "text-white";
             const isDeleting = deletingId === card.id;
@@ -292,8 +277,8 @@ export default function AccountCards() {
               <div
                 key={card.id}
                 className={`relative rounded-xl p-6 shadow-xl overflow-hidden 
-                                 transform hover:scale-[1.03] transition duration-300 ${style} 
-                                 flex flex-col justify-between h-64`}
+                                  transform hover:scale-[1.03] transition duration-300 ${style} 
+                                  flex flex-col justify-between h-64`}
               >
                 <div className="absolute inset-0 opacity-10 bg-repeat bg-[url('/path/to/subtle-pattern.svg')]"></div>
 
@@ -310,7 +295,6 @@ export default function AccountCards() {
                       onClick={() => handleDelete(card.id)}
                       variant="ghost"
                       size="icon"
-                      // Asegura que el color del icono sea visible sobre el fondo de la tarjeta
                       className={`h-8 w-8 rounded-full ${textColor} hover:bg-white/20 p-0`}
                       disabled={isDeleting || deletingId !== null}
                       title="Eliminar Tarjeta"
@@ -327,7 +311,6 @@ export default function AccountCards() {
 
                 {/* 2. Información centralizada: Balance principal */}
                 <div className="text-center py-4 relative z-10">
-                  {/* ... (código de balance) ... */}
                   <p
                     className={`text-sm font-light ${textColor} opacity-80 mb-1`}
                   >
@@ -337,7 +320,8 @@ export default function AccountCards() {
                     className={`text-5xl font-extrabold tracking-tight ${textColor} drop-shadow-lg`}
                   >
                     {getCurrencySymbol(account.currency)}
-                    {balanceValue.toLocaleString("es-ES", {
+                    {/* Renderizado con formato de moneda local. */}
+                    {balanceValue.toLocaleString(undefined, {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,
                     })}
@@ -373,7 +357,7 @@ export default function AccountCards() {
         </div>
       )}
 
-      {/* CONTENEDOR DE BOTONES FLOTANTES EN LA ESQUINA DERECHA INFERIOR (Mantenido) */}
+      {/* CONTENEDOR DE BOTONES FLOTANTES (Mantenido) */}
       <div className="absolute bottom-6 right-6 z-20 flex flex-col items-end gap-3">
         <Link href={`/router/dashboard/accounts/card/`} passHref>
           <Button
