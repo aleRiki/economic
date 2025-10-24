@@ -1,24 +1,32 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import axios from "axios";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button"; 
-import { Input } from "@/components/ui/input";   
-import { Label } from "@/components/ui/label";   
-import { CreditCard, Loader2, CheckCircle, XCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { CreditCard, Loader2, CheckCircle, XCircle, Wallet } from "lucide-react";
 
-// URL base de la API (Asegúrate de que esta constante sea accesible)
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
-// --- TIPOS ---
-type FormData = {
-  number: string;
-  account: string; 
+// --- Tipos ---
+type Account = {
+  id: number;
+  name: string;
+  type: string;
+  balance: number | string;
+  typeAccount: string;
+  bank?: { name: string };
 };
 
-// --- API: Función para crear la tarjeta ---
-const createCard = async (data: { number: string; account: number }) => {
+type FormData = {
+  number: string;
+  account: number;
+};
+
+// --- API: Crear tarjeta ---
+const createCard = async (data: FormData) => {
   const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
   if (!token) throw new Error("Token de autenticación no encontrado.");
 
@@ -28,26 +36,54 @@ const createCard = async (data: { number: string; account: number }) => {
   return response.data;
 };
 
+// --- API: Obtener cuentas ---
+const fetchAccounts = async (): Promise<Account[]> => {
+  const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+  if (!token) throw new Error("Token de autenticación no encontrado.");
+
+  const response = await axios.get(`${API_BASE_URL}/accounts`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return response.data;
+};
+
 // ----------------------------------------------------------------------
 // COMPONENTE PRINCIPAL
 // ----------------------------------------------------------------------
-
 export default function NewCardForm() {
-  // 💥 Inicializamos el router
-  const router = useRouter(); 
-  
+  const router = useRouter();
+
   const [formData, setFormData] = useState<FormData>({
     number: "",
-    account: "",
+    account: 0,
   });
+
+  const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingAccounts, setLoadingAccounts] = useState(true);
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  useEffect(() => {
+    const loadAccounts = async () => {
+      try {
+        const data = await fetchAccounts();
+        setAccounts(data);
+      } catch (err) {
+        console.error("Error al obtener cuentas:", err);
+        setError("Error al cargar las cuentas. Intenta nuevamente.");
+      } finally {
+        setLoadingAccounts(false);
+      }
+    };
+    loadAccounts();
+  }, []);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { id, value } = e.target;
     setFormData({
       ...formData,
-      [e.target.id]: e.target.value,
+      [id]: id === "account" ? parseInt(value) : value,
     });
     setSuccess(null);
     setError(null);
@@ -59,83 +95,57 @@ export default function NewCardForm() {
     setError(null);
     setSuccess(null);
 
-    const accountNumber = parseInt(formData.account);
-
-    if (formData.number.length < 10 || isNaN(accountNumber) || accountNumber <= 0) {
-      setError("Por favor, verifica el número de tarjeta (mín. 10 dígitos) y el ID de cuenta.");
+    if (formData.number.length < 10 || formData.account <= 0) {
+      setError("Por favor, verifica el número de tarjeta (mín. 10 dígitos) y selecciona una cuenta válida.");
       setLoading(false);
       return;
     }
 
     try {
-      // 1. Llamada a la API
-      await createCard({
-        number: formData.number,
-        account: accountNumber,
-      });
-
+      await createCard(formData);
       setSuccess("¡Tarjeta creada exitosamente! Redirigiendo...");
-      
-      // 2. 💥 Redirección después de un breve retraso para mostrar el mensaje de éxito
       setTimeout(() => {
-        // Redirige a la ruta deseada, por ejemplo, el listado de tarjetas
-        router.push("/router/dashboard/accounts"); 
-      }, 1500); // 1.5 segundos de retraso
-      
-    } catch (err) { // 👈 CORRECCIÓN 1: Dejamos el tipo inferido o usamos 'unknown'
+        router.push("/router/dashboard/accounts");
+      }, 1500);
+    } catch (err) {
       console.error("Error al crear tarjeta:", err);
-      
       let errorMessage = "Error al conectar con el servidor o desconocido.";
-
-      // 85:19 ERROR CORREGIDO: Usamos la función de AxiosError para manejar el tipado de la respuesta
       if (axios.isAxiosError(err)) {
-        // El error tiene una propiedad 'response' con la data del backend
         errorMessage = err.response?.data?.message || err.message;
       } else if (err instanceof Error) {
-        // Es un Error estándar
         errorMessage = err.message;
       }
-      
       setError(errorMessage);
     } finally {
-      // Solo desactivamos loading si hubo un error o si el éxito fue manejado por el setTimeout.
-      // Aquí el `if` original está bien: el loading sigue si el success ya está seteado (para la redirección).
-      if (!success) {
-          setLoading(false);
-      }
+      setLoading(false);
     }
   };
 
   return (
     <div className="max-w-xl mx-auto p-6 bg-white rounded-xl shadow-2xl border border-gray-100">
-      
       <h2 className="text-2xl font-bold text-gray-800 mb-2 flex items-center">
-        <CreditCard className="w-6 h-6 mr-3 text-blue-600" /> 
-        Registrar Nueva Tarjeta
+        <CreditCard className="w-6 h-6 mr-3 text-blue-600" /> Registrar Nueva Tarjeta
       </h2>
       <p className="text-sm text-gray-500 mb-6">
         Vincula un nuevo número de tarjeta a una cuenta existente.
       </p>
 
-      {/* --- Mensajes de Estado --- */}
       {success && (
-        <div className="flex items-center p-3 mb-4 text-sm text-green-700 bg-green-100 rounded-lg" role="alert">
+        <div className="flex items-center p-3 mb-4 text-sm text-green-700 bg-green-100 rounded-lg">
           <CheckCircle className="w-5 h-5 mr-2" />
           {success}
         </div>
       )}
 
       {error && (
-        <div className="flex items-center p-3 mb-4 text-sm text-red-700 bg-red-100 rounded-lg" role="alert">
+        <div className="flex items-center p-3 mb-4 text-sm text-red-700 bg-red-100 rounded-lg">
           <XCircle className="w-5 h-5 mr-2" />
           {error}
         </div>
       )}
-      
-      {/* --- Formulario --- */}
+
       <form onSubmit={handleSubmit} className="space-y-6">
-        
-        {/* Campo Número de Tarjeta */}
+        {/* Número de tarjeta */}
         <div>
           <Label htmlFor="number" className="text-sm font-medium text-gray-700">
             Número de Tarjeta
@@ -147,50 +157,55 @@ export default function NewCardForm() {
             value={formData.number}
             onChange={handleChange}
             required
-            pattern="\d{10,19}" 
+            pattern="\d{10,19}"
             className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500"
             disabled={loading}
           />
-          <p className="text-xs text-gray-400 mt-1">
-            Mínimo 10 dígitos. Solo números.
-          </p>
+          <p className="text-xs text-gray-400 mt-1">Mínimo 10 dígitos. Solo números.</p>
         </div>
 
-        {/* Campo ID de Cuenta (Account ID) */}
+        {/* Seleccionar cuenta */}
         <div>
           <Label htmlFor="account" className="text-sm font-medium text-gray-700">
-            ID de Cuenta Asociada (Account ID)
+            Seleccionar Cuenta
           </Label>
-          <Input
-            id="account"
-            type="number"
-            placeholder="Ej: 6"
-            value={formData.account}
-            onChange={handleChange}
-            required
-            min="1"
-            className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500"
-            disabled={loading}
-          />
-          <p className="text-xs text-gray-400 mt-1">
-            Este debe ser el ID de una cuenta existente en el sistema.
-          </p>
+          {loadingAccounts ? (
+            <p className="text-sm text-gray-500">Cargando cuentas...</p>
+          ) : (
+            <div className="relative">
+              <Wallet className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+              <select
+                id="account"
+                value={formData.account}
+                onChange={handleChange}
+                required
+                disabled={loading}
+                className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg bg-white appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition duration-150"
+              >
+                <option value={0}>-- Selecciona una cuenta --</option>
+                {accounts.map((acc) => {
+                  const balanceNum = Number(acc.balance);
+                  return (
+                    <option key={acc.id} value={acc.id}>
+                      {acc.name} • {acc.typeAccount} • {acc.type} (${isNaN(balanceNum) ? "0.00" : balanceNum.toFixed(2)})
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+          )}
+          <p className="text-xs text-gray-400 mt-1">Selecciona la cuenta a la que deseas vincular esta tarjeta.</p>
         </div>
 
-        {/* Botón de Enviar */}
+        {/* Botón enviar */}
         <Button
           type="submit"
           className="w-full py-2 flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition duration-150"
           disabled={loading}
         >
-          {loading ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <CreditCard className="mr-2 h-5 w-5" />
-          )}
+          {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-5 w-5" />}
           {loading ? "Creando Tarjeta..." : "Crear Tarjeta"}
         </Button>
-        
       </form>
     </div>
   );

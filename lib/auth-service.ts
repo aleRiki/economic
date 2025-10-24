@@ -1,29 +1,26 @@
 import axios from "axios";
-// Asumo que tienes estos tipos definidos en tu proyecto
-import { RegisterDto, LoginDto } from "@/app/auth/types/auth"; // Se asume importación de LoginDto
+import { RegisterDto, LoginDto } from "@/app/auth/types/auth";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
 // --- TIPOS DE INTERFAZ DE DATOS ---
 
-// Tipos necesarios para la función getAccounts
 export interface Account {
   id: number;
   name: string;
-  type: string; // Ejemplo: 'USD', 'EUR', 'CUP'
+  type: string;
   balance: string;
   createAt: string;
   deletedAt: string | null;
 }
 
-// Tipos para el manejo de Tarjetas y Transacciones
 export interface Card {
   id: number;
   number: string;
   balance: string;
   account: {
     name: string;
-    type: string; // Ej: 'USD'
+    type: string;
     balance: string;
   };
   deletedAt: string | null;
@@ -36,7 +33,6 @@ export interface TransactionData {
   cardId: number;
 }
 
-// Tipos para respuestas de funciones
 export interface LoginResponse {
   token: string;
   email: string;
@@ -45,19 +41,37 @@ export interface LoginResponse {
 
 export interface PostResponse {
   message: string;
-  // Agrega más campos si tu API retorna algo específico después de un POST
 }
 
-export const registerUser = async (data: RegisterDto) => {
+// --- FUNCIÓN DE UTILIDAD PARA LANZAR ERRORES ---
+const throwApiError = (error: unknown, defaultMessage: string): never => {
+  if (axios.isAxiosError(error)) {
+    if (error.response?.status === 401) {
+      throw new Error("Token de autenticación expirado o inválido. Por favor, inicie sesión de nuevo.");
+    }
+
+    const apiMessage =
+      error.response?.data?.message ||
+      (typeof error.response?.data === "string" ? error.response.data : null) ||
+      error.message;
+
+    throw new Error(apiMessage || defaultMessage);
+  }
+
+  throw new Error(defaultMessage);
+};
+
+// ----------------------------------------------------------------------
+// 1. AUTENTICACIÓN
+// ----------------------------------------------------------------------
+
+export const registerUser = async (data: RegisterDto): Promise<PostResponse> => {
   try {
     const response = await axios.post(`${API_BASE_URL}/auth/register`, data);
     return response.data;
   } catch (error) {
-    if (axios.isAxiosError(error)) {
-      // Manejo de errores de Axios
-      throw error.response?.data || new Error("Ocurrió un error de red.");
-    }
-    throw new Error("Error desconocido al registrar.");
+    throwApiError(error, "Error desconocido al registrar.");
+    return { message: "Error al registrar usuario." }; // Para satisfacer el compilador
   }
 };
 
@@ -68,37 +82,40 @@ export const loginUser = async (data: LoginDto): Promise<LoginResponse> => {
 
     if (typeof window !== "undefined") {
       localStorage.setItem("authToken", token);
+      localStorage.setItem("email", email);
+      localStorage.setItem("name", name);
     }
 
-    return { token, email,name };
+    return { token, email, name };
   } catch (error) {
-    if (axios.isAxiosError(error)) {
-      throw error.response?.data || new Error("No se pudo iniciar sesión.");
-    }
-    throw new Error("Error desconocido al iniciar sesión.");
+    throwApiError(error, "No se pudo iniciar sesión.");
+    return { token: "", email: "", name: "" }; // Para satisfacer el compilador
   }
 };
+
 export const getInitialAndName = () => {
   if (typeof window === "undefined") {
-    return { initial: '?', name: 'Cargando...' };
-  }
-  
-  const userName = localStorage.getItem("email");
- 
-  if (userName) {
-    
-    const initial = userName.charAt(0).toUpperCase();
-    return { initial, name: userName };
+    return { initial: "?", name: "Cargando..." };
   }
 
-  
-  return { initial: 'U', name: 'Usuario' };
+  const userName = localStorage.getItem("name");
+  const userEmail = localStorage.getItem("email");
+  const display = userName || userEmail;
+
+  if (display) {
+    const initial = display.charAt(0).toUpperCase();
+    return { initial, name: display };
+  }
+
+  return { initial: "U", name: "Usuario" };
 };
-console.log(getInitialAndName)
+
+// ----------------------------------------------------------------------
+// 2. CUENTAS Y BANCO
+// ----------------------------------------------------------------------
 export const getAccounts = async (): Promise<Account[]> => {
   try {
-    const token =
-      typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+    const token = localStorage.getItem("authToken");
     if (!token) throw new Error("Token de autenticación no encontrado.");
 
     const response = await axios.get(`${API_BASE_URL}/accounts`, {
@@ -106,20 +123,15 @@ export const getAccounts = async (): Promise<Account[]> => {
     });
     return response.data;
   } catch (error) {
-    if (axios.isAxiosError(error)) {
-      if (error.response?.status === 401)
-        throw new Error("Token de autenticación expirado o inválido.");
-      throw error.response?.data || new Error("Error al obtener las cuentas.");
-    }
-    throw new Error("Error desconocido al obtener las cuentas.");
+    throwApiError(error, "Error al obtener las cuentas.");
+    return []; 
   }
 };
 
 
 export const getBank = async (): Promise<Account[]> => {
   try {
-    const token =
-      typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+    const token = localStorage.getItem("authToken");
     if (!token) throw new Error("Token de autenticación no encontrado.");
 
     const response = await axios.get(`${API_BASE_URL}/bank`, {
@@ -127,47 +139,33 @@ export const getBank = async (): Promise<Account[]> => {
     });
     return response.data;
   } catch (error) {
-    if (axios.isAxiosError(error)) {
-      if (error.response?.status === 401)
-        throw new Error("Token de autenticación expirado o inválido.");
-      throw (
-        error.response?.data ||
-        new Error("Error al obtener las cuentas del banco.")
-      );
-    }
-    throw new Error("Error desconocido al obtener las cuentas del banco.");
+    throwApiError(error, "Error al obtener la información del banco.");
+     return [];
   }
 };
 
-// Obtener Tarjetas (Catch block corregido)
 export const getCard = async (): Promise<Card[]> => {
   try {
-    const token =
-      typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+    const token = localStorage.getItem("authToken");
     if (!token) throw new Error("Token de autenticación no encontrado.");
 
     const response = await axios.get(`${API_BASE_URL}/card`, {
       headers: { Authorization: `Bearer ${token}` },
-    }); // Asumimos que la respuesta es un array de Card
+    });
     return response.data;
   } catch (error) {
-    if (axios.isAxiosError(error)) {
-      if (error.response?.status === 401)
-        throw new Error("Token de autenticación expirado o inválido."); // Se lanza el mensaje de error si existe
-      throw (
-        error.response?.data?.message ||
-        new Error("Error al obtener las tarjetas.")
-      );
-    }
-    throw new Error("Error desconocido al obtener las tarjetas.");
+    throwApiError(error, "Error al obtener las tarjetas.");
+     return [];
   }
 };
 
-// Obtener Transacciones (Tipado a unknown[] y catch block corregido)
+// ----------------------------------------------------------------------
+// 3. TRANSACCIONES
+// ----------------------------------------------------------------------
+
 export const getTransaction = async (): Promise<unknown[]> => {
   try {
-    const token =
-      typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+    const token = localStorage.getItem("authToken");
     if (!token) throw new Error("Token de autenticación no encontrado.");
 
     const response = await axios.get(`${API_BASE_URL}/transaction`, {
@@ -175,52 +173,37 @@ export const getTransaction = async (): Promise<unknown[]> => {
     });
     return response.data;
   } catch (error) {
-    if (axios.isAxiosError(error)) {
-      if (error.response?.status === 401)
-        throw new Error("Token de autenticación expirado o inválido.");
-      throw (
-        error.response?.data || new Error("Error al obtener las transacciones.")
-      );
-    }
-    throw new Error("Error desconocido al obtener las transacciones.");
+    throwApiError(error, "Error al obtener las transacciones.");
+     return [];
   }
 };
 
-// Registrar Transacción (Tipado a PostResponse y catch block corregido)
-export const postTransaction = async (
-  data: TransactionData
-): Promise<PostResponse> => {
+export const postTransaction = async (data: TransactionData): Promise<PostResponse> => {
   try {
-    const token =
-      typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
-    if (!token) throw new Error("Token de autenticación no encontrado."); // Enviamos los datos en el cuerpo de la solicitud POST
+    const token = localStorage.getItem("authToken");
+    if (!token) throw new Error("Token de autenticación no encontrado.");
 
     const response = await axios.post(`${API_BASE_URL}/transaction`, data, {
       headers: {
         Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json", // Aseguramos el tipo de contenido
+        "Content-Type": "application/json",
       },
     });
 
     return response.data;
   } catch (error) {
-    if (axios.isAxiosError(error)) {
-      if (error.response?.status === 401)
-        throw new Error("Token de autenticación expirado o inválido."); // Devolvemos el mensaje de error del backend
-      throw (
-        error.response?.data?.message ||
-        new Error("Error al registrar la transacción.")
-      );
-    }
-    throw new Error("Error desconocido al registrar la transacción.");
+    throwApiError(error, "Error al registrar la transacción.");
+    return { message: "Error al registrar transacción." };
   }
 };
 
-// Obtener Tasa de Cambio (Tipado a unknown y catch block corregido)
-export const getTazadeCambio = async (): Promise<unknown> => {
+// ----------------------------------------------------------------------
+// 4. TASAS DE CAMBIO
+// ----------------------------------------------------------------------
+
+export const getTasaDeCambio = async (): Promise<unknown> => {
   try {
-    const token =
-      typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+    const token = localStorage.getItem("authToken");
     if (!token) throw new Error("Token de autenticación no encontrado.");
 
     const response = await axios.get(`${API_BASE_URL}/bank/rates`, {
@@ -228,17 +211,15 @@ export const getTazadeCambio = async (): Promise<unknown> => {
     });
     return response.data;
   } catch (error) {
-    if (axios.isAxiosError(error)) {
-      if (error.response?.status === 401)
-        throw new Error("Token de autenticación expirado o inválido.");
-      throw (
-        error.response?.data || new Error("Error al obtener la tasa de cambio.")
-      );
-    }
-    throw new Error("Error desconocido al obtener la tasa de cambio.");
+    throwApiError(error, "Error al obtener la tasa de cambio.");
   }
 };
-export const getTasasCambio = async () => {
-  const response = await axios.get(`${API_BASE_URL}/tasa-cambio`);
-  return response.data;
+
+export const getTasasCambio = async (): Promise<unknown> => {
+  try {
+    const response = await axios.get(`${API_BASE_URL}/tasa-cambio`);
+    return response.data;
+  } catch (error) {
+    throwApiError(error, "Error al obtener las tasas de cambio.");
+  }
 };
