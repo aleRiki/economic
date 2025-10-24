@@ -1,5 +1,3 @@
-// ./app/router/dashboard/accounts/components/AccountSummary.tsx
-
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -22,6 +20,7 @@ export default function AccountSummary() {
 
   const fetchRates = useCallback(async () => {
     try {
+      // getTasasCambio debe devolver Promise<ExchangeRate[]>
       const ratesData: ExchangeRate[] = await getTasasCambio();
 
       const formattedRates: Record<string, number> = {};
@@ -66,13 +65,32 @@ export default function AccountSummary() {
     loadData();
   }, [fetchRates, fetchCards]);
 
+  // 🚨 INICIO DE LA CORRECCIÓN: LÓGICA DE CÁLCULO DE SALDO 🚨
   const totalBalanceUSD = cards.reduce((sum, card) => {
-    const currencyType = card.account?.type?.toUpperCase() || "";
+    // 1. Obtener la cadena del tipo de cuenta (ejemplo: "Cuenta Corriente USD")
+    const accountTypeString = card.account?.type?.toUpperCase() || "";
+
+    // 2. Intentar extraer el código de divisa de 3 letras (USD, EUR, MXN)
+    // Se usa una RegEx para encontrar las últimas letras mayúsculas al final de la cadena.
+    // Ej: "CUENTA CORRIENTE USD" -> "USD"
+    const match = accountTypeString.match(/([A-Z]{3})$/);
+    const currencyCode = match ? match[1] : "";
+
+    // 3. Obtener el saldo numérico (eliminar comas y convertir a float)
     const balanceNum = parseFloat(String(card.balance).replace(/,/g, "")) || 0;
-    const rate = exchangeRates[currencyType] ?? 1;
+
+    // 4. Obtener la tasa de cambio.
+    // Si la divisa no está en las tasas (ej. USD), usa 1.0 como tasa predeterminada.
+    const rate = exchangeRates[currencyCode] ?? 1.0;
+
+    // 5. Calcular el saldo en USD
     const balanceInUSD = balanceNum * rate;
+
+    // console.log(`Card: ${accountTypeString}, Code: ${currencyCode}, Balance: ${balanceNum}, Rate: ${rate}, USD: ${balanceInUSD}`);
+
     return sum + balanceInUSD;
   }, 0);
+  // 🚨 FIN DE LA CORRECCIÓN 🚨
 
   if (isLoading) {
     return (
