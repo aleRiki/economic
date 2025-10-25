@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 
-import { Plus, CreditCard, Trash2, Loader2 } from "lucide-react";
+import {CreditCard, Trash2, Loader2, BanknoteArrowDown } from "lucide-react";
 
 // -----------------------------------------------------------
 // CONFIGURACIÓN Y TIPOS
@@ -358,31 +358,43 @@ export default function AccountCards() {
       )}
 
       {/* CONTENEDOR DE BOTONES FLOTANTES (Mantenido) */}
-      <div className="absolute bottom-6 right-6 z-20 flex flex-col items-end gap-3">
-        <Link href={`/router/dashboard/accounts/card/`} passHref>
-          <Button
-            className="shadow-xl bg-green-600 hover:bg-green-700 text-white p-4 rounded-full w-12 h-12 transition-all duration-300 hover:w-40 group"
-            title="Crear Nueva Tarjeta"
-          >
-            <CreditCard className="w-5 h-5 transition-transform duration-300" />
-            <span className="hidden group-hover:inline ml-2 text-sm font-semibold">
-              Nueva Tarjeta
-            </span>
-          </Button>
-        </Link>
+    <div className="absolute bottom-6 right-6 z-20 flex flex-col items-end gap-4">
+    
+    {/* 1. Registrar Ingreso (Acción principal: Verde, colocado abajo/último en la lista para UX) */}
+    <Link href={`/router/dashboard/accounts/income`} passHref>
+      <button
+        // Estilo unificado y auto-ajustable
+        className="shadow-2xl bg-green-600 hover:bg-green-700 text-white p-4 rounded-full w-12 h-12 
+                   transition-all duration-300 ease-in-out hover:w-auto hover:px-6 
+                   group flex items-center justify-center whitespace-nowrap"
+        title="Registrar Ingreso"
+      >
+        {/* Animación: Rotación para mayor dinamismo */}
+        <BanknoteArrowDown className="w-5 h-5 transition-transform duration-300 group-hover:rotate-90" />
+        <span className="hidden group-hover:inline ml-3 text-sm font-semibold tracking-wide">
+          Registrar Ingreso
+        </span>
+      </button>
+    </Link>
 
-        <Link href={`/router/dashboard/accounts/income`} passHref>
-          <Button
-            className="shadow-xl bg-blue-600 hover:bg-blue-700 text-white p-4 rounded-full w-12 h-12 transition-all duration-300 hover:w-36 group"
-            title="Registrar Transacción"
-          >
-            <Plus className="w-5 h-5 transition-transform duration-300 group-hover:rotate-90" />
-            <span className="hidden group-hover:inline ml-2 text-sm font-semibold">
-              Registrar
-            </span>
-          </Button>
-        </Link>
-      </div>
+    {/* 2. Crear Nueva Tarjeta (Acción secundaria: Azul) */}
+    <Link href={`/router/dashboard/accounts/card/`} passHref>
+      <button
+        // Estilo unificado y auto-ajustable
+        className="shadow-2xl bg-blue-600 hover:bg-blue-700 text-white p-4 rounded-full w-12 h-12 
+                   transition-all duration-300 ease-in-out hover:w-auto hover:px-6 
+                   group flex items-center justify-center whitespace-nowrap"
+        title="Crear Nueva Tarjeta"
+      >
+        {/* Animación: Escala y ligera rotación */}
+        <CreditCard className="w-5 h-5 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-6" />
+        <span className="hidden group-hover:inline ml-3 text-sm font-semibold tracking-wide">
+          Nueva Tarjeta
+        </span>
+      </button>
+    </Link>
+    
+</div>
     </div>
   );
 }

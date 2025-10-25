@@ -3,10 +3,10 @@ import React, { useState, useEffect } from "react";
 import {
   Home,
   BarChart,
-  Settings,
   CreditCard,
   LogOut,
   TrendingUp,
+  Landmark,
 } from "lucide-react";
 
 
@@ -17,7 +17,7 @@ const getUserInfo = () => {
   }
 
   // Obtener el nombre guardado en el login
-  const userName = localStorage.getItem("email") || "Usuario";
+  const userName = localStorage.getItem("email") || "name";
 
   // Obtener la primera letra para el avatar
   const initial = userName.charAt(0).toUpperCase();
@@ -48,7 +48,13 @@ export default function Sidebar() {
     <aside className="w-64 bg-white shadow h-full flex flex-col justify-between">
       {/* Título */}
       <div>
-        <div className="p-6 text-2xl font-bold text-blue-800">Finanzas</div>
+        <div className="p-6 text-2xl font-bold text-blue-800">
+           <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-gray-900 flex items-center gap-2">
+              <Landmark className="text-blue-600 w-7 h-7" />
+              <span className="text-gray-800">Finance</span>
+              <span className="text-green-600">Hom</span>
+            </h1>
+        </div>
         <nav className="px-4 space-y-4">
           <a
             href="/router/dashboard"
@@ -78,7 +84,7 @@ export default function Sidebar() {
             href="/router/dashboard/sumbank"
             className="flex items-center gap-2 text-gray-700 hover:text-blue-600"
           >
-            <Settings size={20} /> Gestinar Cuentas y banco
+            <Landmark size={20} /> Gestinar Cuentas y banco
           </a>
         </nav>
       </div>

@@ -1,16 +1,56 @@
 "use client";
 
-import React, { useState } from "react";
-import { registerUser } from "@/lib/auth-service";
+import React, { useState, ChangeEvent, FormEvent, ElementType } from "react";
 import { useRouter } from "next/navigation";
+import { registerUser } from "@/lib/auth-service";
 import { RegisterDto } from "../types/auth";
 import { Role } from "../types/enums";
-import { UserPlus, Mail, Key, User, Server, Code } from "lucide-react"; 
-import { ChangeEvent, FormEvent, ElementType } from "react"; // Importaciones de tipos necesarias
+import { UserPlus, Mail, Key, User, Server, Code, HomeIcon } from "lucide-react";
 
 // ----------------------------------------------------------------------
-// COMPONENTE DE REGISTRO: CIPHER PROFILE TERMINAL (Corregido)
+// COMPONENTE DE REGISTRO CON ESTILO CLARO Y MODERNO
 // ----------------------------------------------------------------------
+type InputGroupProps = {
+  label: string;
+  name: string;
+  type: string;
+  value: string;
+  onChange: (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
+  placeholder: string;
+  Icon: ElementType;
+  loading: boolean;
+};
+
+const InputGroupLight = ({
+  label,
+  name,
+  type,
+  value,
+  onChange,
+  placeholder,
+  Icon,
+  loading,
+}: InputGroupProps) => (
+  <div className="space-y-1">
+    <label htmlFor={name} className="text-sm font-medium text-gray-700">
+      {label}
+    </label>
+    <div className="flex items-center border border-gray-300 rounded-lg px-3 py-2 bg-gray-50 focus-within:border-blue-400 transition">
+      <Icon className="text-blue-500 mr-2" size={18} />
+      <input
+        id={name}
+        type={type}
+        name={name}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        required
+        disabled={loading}
+        className="w-full bg-transparent outline-none text-gray-700 text-sm"
+      />
+    </div>
+  </div>
+);
 
 export const CipherProfileTerminal = () => {
   const router = useRouter();
@@ -26,14 +66,12 @@ export const CipherProfileTerminal = () => {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
-  // Manejador de cambios (Mantiene el tipo original para input/select)
   const handleChange = (
     e: ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  // Manejador de envío (Mantiene el tipo original)
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -42,12 +80,13 @@ export const CipherProfileTerminal = () => {
 
     try {
       const result = await registerUser(formData);
-      setMessage(result.message || "Registro de perfil exitoso!");
+      setMessage(result.message || "¡Registro exitoso!");
       router.push("/auth/login");
     } catch (err: unknown) {
       const errorMessage =
-        err instanceof Error ? err.message : "Error desconocido al registrar el perfil.";
-
+        err instanceof Error
+          ? err.message
+          : "Error desconocido al registrar el perfil.";
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -55,169 +94,121 @@ export const CipherProfileTerminal = () => {
   };
 
   return (
-    <div className="flex justify-center items-center min-h-screen bg-gray-950 p-4 relative overflow-hidden">
-      
-      {/* Fondo de Rejilla Ciber-Holográfico */}
-      <div className="absolute inset-0 z-0 opacity-10" style={{
-        backgroundImage: 'linear-gradient(to right, #083344 1px, transparent 1px), linear-gradient(to bottom, #083344 1px, transparent 1px)',
-        backgroundSize: '20px 20px',
-        maskImage: 'radial-gradient(ellipse at center, black 0%, transparent 80%)'
-      }} />
-
+    <div className="flex justify-center items-center min-h-screen bg-gradient-to-br from-blue-50 to-white p-4">
       <form
         onSubmit={handleSubmit}
-        className="relative z-10 w-full max-w-md p-1 border border-cyan-700/50 rounded-2xl shadow-2xl shadow-cyan-900/50 backdrop-blur-md transition-all duration-500"
+        className="w-full max-w-md bg-white border border-gray-200 rounded-2xl shadow-xl p-8 space-y-6"
       >
-        <div className="w-full bg-gray-900/90 rounded-2xl p-8 flex flex-col items-center text-center">
-
-          {/* Logo y Título */}
-          <div className="mb-8">
-            <UserPlus className="text-cyan-400 w-10 h-10 mb-2 mx-auto drop-shadow-lg shadow-cyan-500/50" />
-            <h2 className="text-3xl font-extrabold text-cyan-400 tracking-wider">
-              CREACIÓN DE PERFIL
-            </h2>
-            <p className="text-gray-500 text-sm font-mono mt-1">
-              INSERTE CREDENCIALES EN EL REGISTRO DE DATOS
-            </p>
-          </div>
-
-          <div className="w-full flex flex-col gap-5">
-            
-            {/* Campo: Nombre Completo */}
-            <InputGroupFuturistic
-              label="Nombre de Entidad"
-              name="name"
-              type="text"
-              value={formData.name}
-              onChange={handleChange}
-              placeholder="Nombre completo"
-              Icon={User}
-              loading={loading}
-            />
-
-            {/* Campo: Correo Electrónico */}
-            <InputGroupFuturistic
-              label="Identificador (Email)"
-              name="email"
-              type="email"
-              value={formData.email}
-              onChange={handleChange}
-              placeholder="correo@protocolo.com"
-              Icon={Mail}
-              loading={loading}
-            />
-
-            {/* Campo: Contraseña */}
-            <InputGroupFuturistic
-              label="Clave de Encriptación"
-              name="password"
-              type="password"
-              value={formData.password}
-              onChange={handleChange}
-              placeholder="• • • • • • • •"
-              Icon={Key}
-              loading={loading}
-            />
-
-            {/* Campo: Rol (Select) */}
-            <div className="flex flex-col items-start relative mb-4">
-                <label
-                    htmlFor="rol-select"
-                    className="text-xs text-gray-500 mb-1 ml-1 font-mono uppercase tracking-widest"
-                >
-                    Nivel de Acceso (Rol)
-                </label>
-                <div className="flex items-center w-full bg-gray-800/70 rounded-lg border border-cyan-800 focus-within:border-cyan-400 transition-all duration-300 shadow-inner shadow-gray-900/50">
-                    <Code className="text-cyan-400 mx-3 shrink-0" size={18} />
-                    <select
-                        id="rol-select"
-                        name="rol"
-                        onChange={handleChange}
-                        value={formData.rol}
-                        disabled={loading}
-                        className="w-full p-3 bg-transparent text-white text-sm font-sans appearance-none outline-none"
-                    >
-                        <option value={Role.USER || "user"} className="bg-gray-800 text-gray-300">
-                            Usuario Estándar
-                        </option>
-                        <option value={Role.ADMIN || "admin"} className="bg-gray-800 text-cyan-400">
-                            Administrador (Root)
-                        </option>
-                    </select>
-                </div>
-            </div>
-
-          </div>
-
-          {/* Botón de Registro: Activación de Perfil */}
-          <button
-            type="submit"
-            disabled={loading}
-            className={`w-full py-3 rounded-xl text-gray-900 font-bold uppercase tracking-wider mt-4 shadow-lg transition transform hover:scale-[1.01] flex items-center justify-center
-              ${
-                loading
-                  ? "bg-cyan-700 cursor-not-allowed opacity-75"
-                  : "bg-cyan-400 hover:bg-cyan-300 shadow-cyan-400/50"
-              }`}
-          >
-            <Server size={18} className="mr-3" />
-            {loading ? "TRANSFERIENDO DATOS..." : "ACTIVAR PERFIL"}
-          </button>
-          
-          {/* Mensajes de estado Futuristas */}
-          {message && (
-            <p className="mt-4 p-3 rounded-lg bg-green-700/80 text-white font-mono text-center border border-green-400">
-               STATUS: {message}
-            </p>
-          )}
-          
-          {error && (
-            <p className="mt-4 p-3 rounded-lg bg-red-600/80 text-white font-mono text-center border border-red-400">
-               ERROR: {error}
-            </p>
-          )}
+        {/* Encabezado */}
+        <div className="text-center">
+          <UserPlus className="text-blue-500 w-10 h-10 mx-auto mb-2" />
+          <h2 className="text-2xl font-bold text-gray-800">
+            Registro de Usuario
+          </h2>
+          <p className="text-sm text-gray-500">
+            Completa los campos para crear tu perfil
+          </p>
         </div>
+
+        {/* Campos */}
+        <div className="space-y-4">
+          <InputGroupLight
+            label="Nombre completo"
+            name="name"
+            type="text"
+            value={formData.name}
+            onChange={handleChange}
+            placeholder="Ej. Juan Pérez"
+            Icon={User}
+            loading={loading}
+          />
+
+          <InputGroupLight
+            label="Correo electrónico"
+            name="email"
+            type="email"
+            value={formData.email}
+            onChange={handleChange}
+            placeholder="correo@ejemplo.com"
+            Icon={Mail}
+            loading={loading}
+          />
+
+          <InputGroupLight
+            label="Contraseña"
+            name="password"
+            type="password"
+            value={formData.password}
+            onChange={handleChange}
+            placeholder="••••••••"
+            Icon={Key}
+            loading={loading}
+          />
+
+          {/* Rol */}
+          <div className="space-y-1">
+            <label
+              htmlFor="rol-select"
+              className="text-sm font-medium text-gray-700"
+            >
+              Rol de acceso
+            </label>
+            <div className="flex items-center border border-gray-300 rounded-lg px-3 py-2 bg-gray-50">
+              <Code className="text-blue-500 mr-2" size={18} />
+              <select
+                id="rol-select"
+                name="rol"
+                onChange={handleChange}
+                value={formData.rol}
+                disabled={loading}
+                className="w-full bg-transparent outline-none text-gray-700 text-sm"
+              >
+                <option value={Role.USER}>Usuario Estándar</option>
+                <option value={Role.ADMIN}>Administrador</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Botón */}
+        <button
+          type="submit"
+          disabled={loading}
+          className={`w-full py-3 rounded-xl font-semibold text-white transition duration-300 ${
+            loading
+              ? "bg-blue-300 cursor-not-allowed"
+              : "bg-blue-500 hover:bg-blue-400"
+          }`}
+        >
+          <div className="flex items-center justify-center gap-2">
+            <Server size={18} />
+            {loading ? "Registrando..." : "Crear perfil"}
+          </div>
+        </button>
+        <button
+          type="button"
+          onClick={() => router.push("/")}
+          disabled={loading}
+          className="w-full py-3 rounded-xl font-semibold text-blue-600 border border-blue-600 hover:bg-blue-50 transition duration-300"
+        >
+          <div className="flex items-center justify-center gap-2">
+            <HomeIcon size={18} />
+            {loading ? "Regresando al inicio..." : "Inicio"}
+          </div>
+        </button>
+
+        {/* Mensajes */}
+        {message && (
+          <p className="mt-4 p-3 rounded-lg bg-green-100 text-green-800 text-sm text-center border border-green-300">
+            {message}
+          </p>
+        )}
+        {error && (
+          <p className="mt-4 p-3 rounded-lg bg-red-100 text-red-800 text-sm text-center border border-red-300">
+            {error}
+          </p>
+        )}
       </form>
-      
     </div>
   );
 };
-
-
-// ----------------------------------------------------------------------
-// COMPONENTE DE INPUT MEJORADO (InputGroupFuturistic) - TIPO CORREGIDO
-// ----------------------------------------------------------------------
-type InputGroupProps = {
-    label: string;
-    name: string;
-    type: string;
-    value: string;
-    // CORRECCIÓN CLAVE: El onChange debe aceptar ChangeEvent<HTMLInputElement | HTMLSelectElement>
-    onChange: (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void; 
-    placeholder: string;
-    Icon: ElementType;
-    loading: boolean;
-}
-
-const InputGroupFuturistic = ({ label, name, type, value, onChange, placeholder, Icon, loading }: InputGroupProps) => (
-    <div className="flex flex-col items-start relative">
-        <label htmlFor={name} className="text-xs text-gray-500 mb-1 ml-1 font-mono uppercase tracking-widest">
-            {label}
-        </label>
-        {/* Estilo de Input Holográfico */}
-        <div className="flex items-center w-full bg-gray-800/70 rounded-lg p-3 border border-cyan-800 focus-within:border-cyan-400 transition-all duration-300 shadow-inner shadow-gray-900/50">
-            <Icon className="text-cyan-400 mr-3 shrink-0" size={18} />
-            <input
-                id={name}
-                type={type}
-                name={name}
-                value={value}
-                onChange={onChange} // ¡CORREGIDO! Ya no se necesita 'as any'.
-                placeholder={placeholder}
-                required
-                disabled={loading}
-                className="w-full bg-transparent outline-none placeholder-gray-500 text-white text-sm font-sans tracking-wide"
-            />
-        </div>
-    </div>
-);
