@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
-import { DollarSign, AlertTriangle, Loader2 } from "lucide-react";
+import { DollarSign, AlertTriangle, Loader2, TrendingUp } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { getAccounts, Account } from "@/lib/auth-service";
 import { getTasasCambio } from "@/lib/tasaCambioService";
@@ -15,14 +15,11 @@ interface ExchangeRate {
 export default function TransactionHistory() {
   const router = useRouter();
   const [accounts, setAccounts] = useState<Account[]>([]);
-  const [exchangeRates, setExchangeRates] = useState<Record<string, number>>(
-    {}
-  );
+  const [exchangeRates, setExchangeRates] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // ... (Funciones fetchExchangeRates, fetchAccounts y useEffect loadData sin cambios en su lógica) ...
-
+  // --- Obtener tasas de cambio ---
   const fetchExchangeRates = useCallback(async () => {
     try {
       const data: ExchangeRate[] = await getTasasCambio();
@@ -39,6 +36,7 @@ export default function TransactionHistory() {
     }
   }, []);
 
+  // --- Obtener cuentas ---
   const fetchAccounts = useCallback(async () => {
     try {
       const accountsData = await getAccounts();
@@ -65,28 +63,21 @@ export default function TransactionHistory() {
     loadData();
   }, [fetchExchangeRates, fetchAccounts]);
 
+  // --- Conversión de moneda ---
   const convertToUSD = useCallback(
     (amount: string, currencyType: string): number => {
       const value = parseFloat(amount);
-      if (isNaN(value)) {
-        console.warn(
-          `Advertencia: Saldo no numérico encontrado para la cuenta: ${amount}`
-        );
-        return 0;
-      }
+      if (isNaN(value)) return 0;
       const rate = exchangeRates[currencyType] ?? 0;
-      if (isNaN(rate)) {
-        return 0;
-      }
       return value * rate;
     },
     [exchangeRates]
   );
 
+  // --- Cálculos principales ---
   const { totalConsolidatedUSD, globalGoalUSD, progressPercentage, donutData } =
     useMemo(() => {
       const hasRates = Object.keys(exchangeRates).length > 0;
-
       if (!hasRates && !loading) {
         return {
           totalConsolidatedUSD: 0,
@@ -106,7 +97,7 @@ export default function TransactionHistory() {
 
       const goalUSD = totalUSD * 1.2;
       const progress = Math.min(100, Math.round((totalUSD / goalUSD) * 100));
-      const progressColor = progress >= 100 ? "#10b981" : "#2563eb";
+      const progressColor = progress >= 100 ? "#16a34a" : "#2563eb";
 
       return {
         totalConsolidatedUSD: totalUSD,
@@ -117,61 +108,59 @@ export default function TransactionHistory() {
           {
             name: "Restante",
             value: Math.max(0, 100 - progress),
-            fill: "#e5e7eb",
+            fill: "#f3f4f6",
           },
         ],
       };
     }, [accounts, convertToUSD, exchangeRates, loading]);
 
-  // ----------------------------------------------------------------------
-  // 6️⃣ ESTADOS DE CARGA Y ERROR (ESPACIOS CORREGIDOS)
-  // ----------------------------------------------------------------------
-
+  // --- Loading ---
   if (loading) {
     return (
-      <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 flex items-center justify-center h-96">
-        {/* ✅ Líneas juntas, sin espacios intermedios */}
-        <Loader2 className="w-8 h-8 text-blue-500 animate-spin mr-3" />
-        <p className="text-lg text-gray-600">Cargando datos financieros...</p>
+      <div className="bg-gradient-to-r from-blue-50 to-white p-6 rounded-2xl shadow-lg border border-gray-100 flex flex-col items-center justify-center h-96">
+        <Loader2 className="w-10 h-10 text-blue-500 animate-spin mb-2" />
+        <p className="text-base text-gray-600 font-medium">
+          Cargando datos financieros...
+        </p>
       </div>
     );
   }
 
+  // --- Error ---
   if (error) {
     return (
-      <div className="bg-red-100 p-6 rounded-xl shadow-lg border border-red-400 text-red-700 flex items-center h-60">
-        {/* ✅ Líneas juntas */}
-        <AlertTriangle className="w-6 h-6 mr-3" />
+      <div className="bg-red-50 border border-red-300 rounded-2xl p-6 flex items-start space-x-3 shadow-lg">
+        <AlertTriangle className="w-6 h-6 text-red-500 mt-1" />
         <div>
-          <h2 className="font-bold">Error de Datos</h2>
-          <p className="text-sm mb-1">
-            No se pudieron cargar las cuentas o tasas de cambio.
-          </p>
-          <p className="text-xs italic">{error}</p>
+          <h3 className="text-lg font-semibold text-red-700">
+            Error de Datos Financieros
+          </h3>
+          <p className="text-sm text-red-600 mt-1">{error}</p>
         </div>
       </div>
     );
   }
 
-  // ----------------------------------------------------------------------
-  // 7️⃣ RENDER PRINCIPAL (ESPACIOS CORREGIDOS)
-  // ----------------------------------------------------------------------
-
+  // --- UI principal ---
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      {/* GRÁFICO CONSOLIDADO */}
-      <div className="bg-white p-6 rounded-lg shadow-lg border border-gray-100 flex flex-col items-center h-full">
-        <h2 className="text-xl font-bold text-blue-700 mb-4 flex items-center">
-          <DollarSign className="w-5 h-5 mr-2" />
-          Progreso de Meta (Balance Consolidado)
-        </h2>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      {/* GRÁFICO PRINCIPAL */}
+      <div className="bg-white p-6 rounded-2xl shadow-xl border border-gray-100 flex flex-col items-center">
+        <div className="flex items-center mb-4">
+          <div className="bg-blue-100 p-2 rounded-lg mr-3">
+            <DollarSign className="text-blue-600 w-5 h-5" />
+          </div>
+          <h2 className="text-xl font-semibold text-gray-800">
+            Balance Consolidado
+          </h2>
+        </div>
 
-        <ResponsiveContainer width="100%" height={220}>
+        <ResponsiveContainer width="100%" height={240}>
           <PieChart>
             <Pie
               data={donutData}
-              innerRadius={70}
-              outerRadius={100}
+              innerRadius={80}
+              outerRadius={110}
               dataKey="value"
               startAngle={90}
               endAngle={450}
@@ -183,16 +172,16 @@ export default function TransactionHistory() {
                   <>
                     <text
                       x={cx}
-                      y={cy - 10}
+                      y={cy - 12}
                       textAnchor="middle"
                       dominantBaseline="central"
-                      className="text-sm fill-gray-500"
+                      className="text-xs fill-gray-400"
                     >
-                      META (120% USD)
+                      META (120%)
                     </text>
                     <text
                       x={cx}
-                      y={cy + 15}
+                      y={cy + 10}
                       textAnchor="middle"
                       dominantBaseline="central"
                       className="text-3xl font-bold fill-gray-800"
@@ -211,19 +200,19 @@ export default function TransactionHistory() {
           </PieChart>
         </ResponsiveContainer>
 
-        <div className="mt-4 w-full text-center">
-          <p className="text-sm text-gray-600">
-            Balance Total Consolidado (USD):{" "}
-            <span className="font-bold text-gray-800 ml-1">
+        <div className="mt-5 text-center space-y-1">
+          <p className="text-gray-600 text-sm">
+            Total Consolidado:
+            <span className="font-semibold text-gray-900 ml-1">
               $
               {totalConsolidatedUSD.toLocaleString("en-US", {
                 minimumFractionDigits: 2,
               })}
             </span>
           </p>
-          <p className="text-sm text-gray-600">
-            Objetivo (20% adicional):{" "}
-            <span className="font-bold text-blue-600 ml-1">
+          <p className="text-gray-600 text-sm">
+            Objetivo (20% más):
+            <span className="font-semibold text-blue-600 ml-1">
               $
               {globalGoalUSD.toLocaleString("en-US", {
                 minimumFractionDigits: 2,
@@ -231,47 +220,47 @@ export default function TransactionHistory() {
             </span>
           </p>
           {progressPercentage >= 100 && (
-            <p className="text-sm font-bold text-green-600 mt-2">
-              ¡Meta lograda! 🎉
-            </p>
+            <div className="flex items-center justify-center text-green-600 text-sm font-bold mt-2 animate-pulse">
+              <TrendingUp className="w-4 h-4 mr-1" />
+              ¡Meta alcanzada!
+            </div>
           )}
         </div>
       </div>
 
-      {/* TABLA DE CUENTAS (ESPACIOS CORREGIDOS) */}
-      <div className="bg-white p-6 rounded-lg shadow h-full">
+      {/* TABLA DE CUENTAS */}
+      <div className="bg-white p-6 rounded-2xl shadow-xl border border-gray-100">
         <h2 className="text-lg font-semibold text-gray-800 mb-4">
-          Registro de Cuentas Creadas
+          Cuentas Registradas
         </h2>
 
-        <div className="overflow-x-auto h-[350px]">
+        <div className="overflow-x-auto max-h-[360px] rounded-lg border border-gray-100">
           <table className="min-w-full text-sm">
-            <thead>
-              <tr className="text-left text-gray-500 border-b">
-                {/* ✅ THs juntos en la misma línea o sin indentación excesiva */}
-                <th className="py-2 px-1">Nombre</th>
-                <th className="py-2 px-1">Moneda</th>
-                <th className="py-2 px-1">Balance</th>
-                <th className="py-2 px-1">Creada</th>
+            <thead className="bg-gray-50 sticky top-0 z-10">
+              <tr className="text-left text-gray-600 border-b">
+                <th className="py-3 px-4">Nombre</th>
+                <th className="py-3 px-4">Moneda</th>
+                <th className="py-3 px-4">Balance</th>
+                <th className="py-3 px-4">Creada</th>
               </tr>
             </thead>
-            {/* ✅ TBODY va inmediatamente después de THEAD, y el contenido (condicional) va inmediatamente después del <tbody> */}
             <tbody>
               {accounts.length > 0 ? (
                 accounts.map((a) => (
                   <tr
                     key={a.id}
-                    className="border-b text-gray-700 hover:bg-gray-50 transition"
+                    className="hover:bg-blue-50 transition-colors duration-150"
                   >
-                    {/* ✅ TDs sin indentación interna excesiva */}
-                    <td className="py-2 px-1 font-semibold">{a.name}</td>
-                    <td className="py-2 px-1">{a.type}</td>
-                    <td className="py-2 px-1 font-mono text-sm">
+                    <td className="py-2 px-4 font-medium text-gray-700">
+                      {a.name}
+                    </td>
+                    <td className="py-2 px-4 text-gray-600">{a.type}</td>
+                    <td className="py-2 px-4 font-mono text-gray-800">
                       {parseFloat(a.balance).toLocaleString("en-US", {
                         minimumFractionDigits: 2,
                       })}
                     </td>
-                    <td className="py-2 px-1 text-xs">
+                    <td className="py-2 px-4 text-gray-500 text-xs">
                       {new Date(a.createAt).toLocaleDateString("es-ES", {
                         year: "numeric",
                         month: "short",
@@ -283,7 +272,7 @@ export default function TransactionHistory() {
               ) : (
                 <tr>
                   <td colSpan={4} className="py-4 text-center text-gray-500">
-                    No se encontraron cuentas registradas.
+                    No hay cuentas disponibles.
                   </td>
                 </tr>
               )}

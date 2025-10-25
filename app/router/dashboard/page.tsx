@@ -1,8 +1,9 @@
-import Sidebar from "./components/Sidebar"; 
-import Header from "./components/Header"; 
-import AccountOverview from "./components/AccountOverview"; 
-import CurrencyAnalytics from "./components/CurrencyAnalytics"; 
+import Sidebar from "./components/Sidebar";
+import Header from "./components/Header";
+import AccountOverview from "./components/AccountOverview";
+
 import TransactionHistory from "./components/TransactionHistory";
+import DebtAndWithdrawalTracker from "./components/DebtAndWithdrawalTracker";
 
 export default function DashboardPage() {
   return (
@@ -14,7 +15,7 @@ export default function DashboardPage() {
           <AccountOverview />
           <TransactionHistory />
 
-          <CurrencyAnalytics />
+          <DebtAndWithdrawalTracker />
         </main>
       </div>
     </div>

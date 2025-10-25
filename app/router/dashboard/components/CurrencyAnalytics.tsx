@@ -7,98 +7,129 @@ import {
   Tooltip,
   ResponsiveContainer,
   CartesianGrid,
+  Area, // Usamos Area para el balance neto
 } from "recharts";
 
 // -------------------------------
-// 1️⃣ Tipos
+// 1️⃣ Tipos: Adaptados para Ingresos y Gastos
 // -------------------------------
-type CandleData = {
+type FinanceData = {
   Semana: number;
-  open: number;
-  close: number;
-  high: number;
-  low: number;
+  Ingresos: number;
+  Gastos: number;
+  BalanceNeto: number; // Ingresos - Gastos
 };
 
 // -------------------------------
-// 2️⃣ Datos de ejemplo
+// 2️⃣ Datos de ejemplo: Datos realistas de finanzas
 // -------------------------------
-const data: CandleData[] = [
-  { Semana: 27, open: 1100, close: 1150, high: 1200, low: 1080 },
-  { Semana: 28, open: 1150, close: 1250, high: 1280, low: 1120 },
-  { Semana: 29, open: 1250, close: 1200, high: 1260, low: 1180 },
-  { Semana: 30, open: 1200, close: 1300, high: 1350, low: 1190 },
-  { Semana: 31, open: 1300, close: 1450, high: 1500, low: 1280 },
-  { Semana: 32, open: 1450, close: 1550, high: 1580, low: 1400 },
-  { Semana: 33, open: 1550, close: 1650, high: 1700, low: 1520 },
-  { Semana: 34, open: 1650, close: 1600, high: 1680, low: 1580 },
+const data: FinanceData[] = [
+  { Semana: 27, Ingresos: 3500, Gastos: 2100, BalanceNeto: 1400 },
+  { Semana: 28, Ingresos: 3800, Gastos: 2500, BalanceNeto: 1300 },
+  { Semana: 29, Ingresos: 3200, Gastos: 2000, BalanceNeto: 1200 },
+  { Semana: 30, Ingresos: 4100, Gastos: 2900, BalanceNeto: 1200 },
+  { Semana: 31, Ingresos: 4500, Gastos: 3200, BalanceNeto: 1300 },
+  { Semana: 32, Ingresos: 4800, Gastos: 3000, BalanceNeto: 1800 },
+  { Semana: 33, Ingresos: 4200, Gastos: 2700, BalanceNeto: 1500 },
+  { Semana: 34, Ingresos: 5000, Gastos: 3500, BalanceNeto: 1500 },
 ];
 
 // -------------------------------
-// 3️⃣ Función de sugerencia semanal
+// 3️⃣ Función de Análisis y Sugerencia
 // -------------------------------
-function getSuggestion(data: CandleData[]) {
+function getSuggestion(data: FinanceData[]) {
   const last = data[data.length - 1];
-  const growth = last.close - last.open;
-  const percent = ((growth / last.open) * 100).toFixed(2);
-
-  if (growth > 0) {
-    return `📈 Crecimiento positivo del ${percent}% en la Semana ${last.Semana}. Se recomienda mantener la inversión.`;
-  } else if (growth < 0) {
-    return `📉 Pérdida del ${Math.abs(parseFloat(percent))}% en la Semana ${last.Semana}. Analiza gastos o fluctuaciones.`;
+  const previous = data[data.length - 2];
+  
+  if (!previous) {
+      return `📊 Análisis inicial. Los ingresos son $${last.Ingresos.toLocaleString()} y los gastos $${last.Gastos.toLocaleString()} en la Semana ${last.Semana}.`;
+  }
+  
+  const balanceGrowth = last.BalanceNeto - previous.BalanceNeto;
+  
+  if (balanceGrowth > 0) {
+    return `✅ ¡Balance neto mejoró! Aumentó en $${balanceGrowth.toLocaleString()} respecto a la semana anterior. Mantén el enfoque en la diferencia.`;
+  } else if (balanceGrowth < 0) {
+    return `⚠️ El balance neto se redujo en $${Math.abs(balanceGrowth).toLocaleString()}. Revisa si fue por un aumento en gastos o una caída en ingresos.`;
   } else {
-    return `⏸️ Sin cambios significativos. Mantener vigilancia sobre próximos movimientos.`;
+    return `⏸️ El balance neto se mantuvo estable. Es un buen momento para buscar nuevas oportunidades de ingreso.`;
   }
 }
 
 // -------------------------------
 // 4️⃣ Componente Principal
 // -------------------------------
-export default function WeeklyIncomeAnalytics() {
+export default function WeeklyFinanceAnalytics() {
   const suggestion = getSuggestion(data);
 
   return (
     <div className="bg-white p-6 rounded-lg shadow space-y-4">
       <h2 className="text-xl font-semibold text-gray-800">
-        Evolución de Ingresos por Semana del Año (USD)
+        Análisis Semanal de Flujo de Efectivo (USD)
       </h2>
 
       <ResponsiveContainer width="100%" height={350}>
-        <ComposedChart data={data} barGap={5}>
+        <ComposedChart data={data} barGap={10}>
           <CartesianGrid strokeDasharray="3 3" />
+          
           <XAxis
             dataKey="Semana"
             label={{ value: "Semana del Año", position: "bottom", offset: 0 }}
           />
+          
           <YAxis
-            domain={["dataMin", "dataMax"]}
+            yAxisId="left" // Eje Y para Barras (Ingresos/Gastos)
             label={{
-              value: "Ingresos (USD)",
+              value: "Monto (USD)",
               angle: -90,
               position: "insideLeft",
             }}
           />
+          
+          <YAxis
+            yAxisId="right" // Eje Y para Área (Balance Neto)
+            orientation="right"
+            stroke="#1d4ed8" // Azul
+            domain={["dataMin", "dataMax"]}
+            tick={false} // No mostrar ticks, solo usar para el dominio
+          />
+          
           <Tooltip
-            formatter={(value: number | string, name: string) => {
-              if (["open", "close", "high", "low"].includes(name)) {
-                return [
-                  `$${value}`,
-                  name.charAt(0).toUpperCase() + name.slice(1),
-                ];
-              }
-              return [null, null];
-            }}
             labelFormatter={(label) => `Semana: ${label}`}
+            formatter={(value: number, name: string) => {
+              return [`$${value.toLocaleString()}`, name];
+            }}
           />
 
-          {/* Cuerpo de vela: representamos open y close como barras apiladas */}
-          <Bar dataKey="open" fill="#ef4444" barSize={20} />
-          <Bar dataKey="close" fill="#10b981" barSize={20} />
+          {/* Área para el Balance Neto (usando el eje derecho) */}
+          <Area 
+            yAxisId="right"
+            type="monotone" 
+            dataKey="BalanceNeto" 
+            stroke="#1d4ed8" 
+            fillOpacity={0.1} 
+            fill="#1d4ed8" 
+            name="Balance Neto"
+          />
+
+          {/* Barras: Ingresos y Gastos */}
+          <Bar 
+            yAxisId="left"
+            dataKey="Ingresos" 
+            fill="#10b981" // Verde para Ingresos
+            name="Ingresos" 
+          />
+          <Bar 
+            yAxisId="left"
+            dataKey="Gastos" 
+            fill="#ef4444" // Rojo para Gastos
+            name="Gastos"
+          />
         </ComposedChart>
       </ResponsiveContainer>
 
       <div className="text-sm text-gray-700 bg-blue-50 p-4 rounded-lg border border-blue-200">
-        <strong>Análisis Semanal:</strong> {suggestion}
+        <strong>Análisis:</strong> {suggestion}
       </div>
     </div>
   );
