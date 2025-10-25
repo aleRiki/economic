@@ -10,30 +10,28 @@ import {
   PieLabelRenderProps,
 } from "recharts";
 
-// Tipos y datos de ejemplo
-interface Transaction {
-  id: string;
-  amount: number | string;
-  category: string;
-  transactionType: "deposit" | "withdraw";
-  description: string;
-  date: string;
-}
+// 🚨 IMPORTACIÓN REQUERIDA (Asume que la ruta es correcta)
+import {
+  getTransaction,
+  ProcessedUserTransaction,
+  TransactionCategoryType,
+} from "@/lib/auth-service";
 
-type UserTransaction = Transaction;
-
-const mockTransactions: UserTransaction[] = [
-  { id: "t1", amount: 3500, category: "Salario", transactionType: "deposit", description: "Nómina mensual", date: "2025-10-01" },
-  { id: "t2", amount: 1200, category: "Alquiler", transactionType: "withdraw", description: "Renta mensual", date: "2025-10-05" },
-  { id: "t3", amount: 800, category: "Comida", transactionType: "withdraw", description: "Supermercado", date: "2025-10-09" },
-  { id: "t4", amount: 400, category: "Inversiones", transactionType: "deposit", description: "Dividendos", date: "2025-10-10" },
-  { id: "t5", amount: 250, category: "Transporte", transactionType: "withdraw", description: "Gasolina", date: "2025-10-14" },
-  { id: "t6", amount: 100, category: "Entretenimiento", transactionType: "withdraw", description: "Spotify / Netflix", date: "2025-10-17" },
+// --- TIPOS ---
+type UserTransaction = ProcessedUserTransaction;
+// Definimos categorías conocidas para ayudar en la reclasificación
+// Aunque tu backend solo usa 'salary', 'transportation', 'entertainment', y 'other_expense',
+// incluimos 'other_income' para la corrección lógica.
+const KNOWN_INCOME_CATEGORIES: TransactionCategoryType[] = [
+    "salary",
+    "investment",
+    "bonus",
+    "refund",
+    "other_income", // Usaremos esta para los ingresos mal clasificados
 ];
 
-const getTransaction = (): Promise<UserTransaction[]> =>
-  new Promise((resolve) => setTimeout(() => resolve(mockTransactions), 1200));
 
+// Loader2 (Mantener para el estado de carga)
 const Loader2 = ({ className }: { className?: string }) => (
   <svg
     className={`${className} animate-spin`}
@@ -51,7 +49,8 @@ const Loader2 = ({ className }: { className?: string }) => (
   </svg>
 );
 
-// Paleta de colores moderna
+
+// Paleta de colores moderna (sin cambios)
 const CATEGORY_COLORS = [
   "#6366F1", "#06B6D4", "#F59E0B", "#EF4444", "#10B981",
   "#8B5CF6", "#EC4899", "#3B82F6", "#14B8A6", "#F97316",
@@ -61,21 +60,48 @@ const COLORS = {
   NEGATIVE: "#DC2626",
 };
 
-// Procesamiento de transacciones
+// --- FUNCIÓN DE PROCESAMIENTO CORREGIDA ---
 function processTransactions(data: UserTransaction[]) {
   let totalIncome = 0;
   let totalExpense = 0;
   const incomeTotals: Record<string, number> = {};
   const expenseTotals: Record<string, number> = {};
 
+  // Función de utilidad para mejorar la presentación de la categoría
+  const formatCategoryName = (category: TransactionCategoryType | string): string => {
+    // Reemplaza guiones bajos por espacios y capitaliza la primera letra
+    return category.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  }
+    
   data.forEach((t) => {
-    const amount = parseFloat(String(t.amount)) || 0;
+    // Aseguramos que amount sea number
+    const amount = t.amount || 0;
+    
+    // Estandarizar la clave de la categoría
+    const rawCategoryKey = (t.category as string || "other_expense").toLowerCase().trim().replace(/\s/g, '_'); 
+
     if (t.transactionType === "deposit") {
       totalIncome += amount;
-      incomeTotals[t.category] = (incomeTotals[t.category] || 0) + amount;
-    } else {
+      
+      // 🚨 CORRECCIÓN LÓGICA: 
+      // Si el backend envía un depósito con una categoría de gasto (como 'other_expense'),
+      // lo reclasificamos para el frontend como 'other_income'.
+      const finalIncomeCategory = KNOWN_INCOME_CATEGORIES.includes(rawCategoryKey as TransactionCategoryType)
+          ? rawCategoryKey
+          : "other_income"; 
+
+      incomeTotals[finalIncomeCategory] = (incomeTotals[finalIncomeCategory] || 0) + amount;
+      
+    } else { // Asumimos que "withdraw" es el otro tipo
       totalExpense += amount;
-      expenseTotals[t.category] = (expenseTotals[t.category] || 0) + amount;
+      
+      // Para los gastos, si el backend accidentalmente lo clasifica con una categoría de Ingreso, 
+      // lo reclasificamos a 'other_expense'.
+      const finalExpenseCategory = !KNOWN_INCOME_CATEGORIES.includes(rawCategoryKey as TransactionCategoryType)
+          ? rawCategoryKey
+          : "other_expense"; 
+
+      expenseTotals[finalExpenseCategory] = (expenseTotals[finalExpenseCategory] || 0) + amount;
     }
   });
 
@@ -86,23 +112,25 @@ function processTransactions(data: UserTransaction[]) {
     totalExpense,
     netBalance,
     incomeData: Object.entries(incomeTotals).map(([name, value], i) => ({
-      name,
+      name: formatCategoryName(name),
       value,
       color: CATEGORY_COLORS[i % CATEGORY_COLORS.length],
     })),
     expenseData: Object.entries(expenseTotals).map(([name, value], i) => ({
-      name,
+      name: formatCategoryName(name),
       value,
-      color: CATEGORY_COLORS[(i + 5) % CATEGORY_COLORS.length],
+      // Usamos un offset para que los gastos tengan colores diferentes a los ingresos
+      color: CATEGORY_COLORS[(i + 5) % CATEGORY_COLORS.length], 
     })),
     balanceData: [
+      // Incluimos ambos valores incluso si uno es cero, para que el gráfico de Balance General se dibuje.
       { name: "Ingresos", value: totalIncome, color: COLORS.POSITIVE },
       { name: "Gastos", value: totalExpense, color: COLORS.NEGATIVE },
     ],
   };
 }
 
-// Etiqueta del gráfico
+// Etiqueta del gráfico (sin cambios)
 const CustomPieLabel = ({
   cx,
   cy,
@@ -114,6 +142,9 @@ const CustomPieLabel = ({
   const x = Number(cx ?? 0) + r * Math.cos(-Number(midAngle ?? 0) * (Math.PI / 180));
   const y = Number(cy ?? 0) + r * Math.sin(-Number(midAngle ?? 0) * (Math.PI / 180));
   const percentage = Number(percent ?? 0) * 100;
+
+  // Solo mostrar la etiqueta si el porcentaje es significativo
+  if (percentage < 3) return null; 
 
   return (
     <text
@@ -129,16 +160,28 @@ const CustomPieLabel = ({
   );
 };
 
+
 // Componente principal
 export default function FinancialCompositionAnalysis() {
   const [transactions, setTransactions] = useState<UserTransaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null); 
 
   useEffect(() => {
-    getTransaction().then((data) => {
-      setTransactions(data);
-      setLoading(false);
-    });
+    getTransaction()
+      .then((data) => {
+        setTransactions(data);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error("Error fetching transactions:", err);
+        // Si el error es una falta de token, mostramos un mensaje específico
+        const errorMessage = (err as Error).message.includes("Token") 
+            ? "Error: No se encontró el token de sesión. Por favor, inicie sesión."
+            : "Error al cargar datos: " + (err as Error).message;
+        setError(errorMessage);
+        setLoading(false);
+      });
   }, []);
 
   const { totalIncome, totalExpense, netBalance, incomeData, expenseData, balanceData } =
@@ -146,9 +189,19 @@ export default function FinancialCompositionAnalysis() {
 
   if (loading) {
     return (
-      <div className="min-h-[400px] flex flex-col items-center justify-center bg-white/50 backdrop-blur-md rounded-2xl shadow-md border border-gray-100">
+      <div className="min-h-[400px] flex flex-col items-center justify-center bg-white/70 backdrop-blur-md rounded-2xl shadow-xl border border-gray-100">
         <Loader2 className="w-10 h-10 text-indigo-500" />
-        <p className="mt-3 text-gray-600 font-medium">Cargando datos financieros...</p>
+        <p className="mt-3 text-gray-700 font-medium">Cargando datos financieros...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-[400px] flex flex-col items-center justify-center bg-red-50/70 backdrop-blur-md rounded-2xl shadow-xl border border-red-300 p-8">
+        <p className="text-xl font-bold text-red-700">¡Error de API!</p>
+        <p className="mt-2 text-sm text-red-600 text-center">{error}</p>
+        <p className="mt-4 text-xs text-gray-500">Asegúrate de que el backend esté activo y que el token de autenticación sea válido.</p>
       </div>
     );
   }
@@ -161,11 +214,11 @@ export default function FinancialCompositionAnalysis() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-10">
         <div className="bg-white/70 backdrop-blur-md rounded-xl p-6 shadow-md border-l-4 border-green-500 text-center hover:scale-105 transition">
           <h3 className="text-sm text-green-700 uppercase font-semibold">Ingresos</h3>
-          <p className="text-3xl font-bold text-green-600">${totalIncome.toLocaleString()}</p>
+          <p className="text-3xl font-bold text-green-600">${totalIncome.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</p>
         </div>
         <div className="bg-white/70 backdrop-blur-md rounded-xl p-6 shadow-md border-l-4 border-red-500 text-center hover:scale-105 transition">
           <h3 className="text-sm text-red-700 uppercase font-semibold">Gastos</h3>
-          <p className="text-3xl font-bold text-red-600">${totalExpense.toLocaleString()}</p>
+          <p className="text-3xl font-bold text-red-600">${totalExpense.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</p>
         </div>
         <div className="bg-white/70 backdrop-blur-md rounded-xl p-6 shadow-md border-l-4 border-blue-500 text-center hover:scale-105 transition">
           <h3 className="text-sm text-blue-700 uppercase font-semibold">Balance Neto</h3>
@@ -174,59 +227,80 @@ export default function FinancialCompositionAnalysis() {
               netBalance >= 0 ? "text-green-600" : "text-red-600"
             }`}
           >
-            ${netBalance.toLocaleString()}
+            ${netBalance.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
           </p>
         </div>
       </div>
 
+      {/* Mensaje si no hay datos */}
+      {(incomeData.length === 0 && expenseData.length === 0) && (
+        <div className="text-center py-10 text-gray-500 bg-white/70 rounded-xl mb-8">
+          <p className="text-lg font-medium">No hay transacciones registradas para analizar.</p>
+          <p className="text-sm mt-1">Realice su primer depósito o retiro para ver los gráficos.</p>
+        </div>
+      )}
+
       {/* Gráficos */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        
         {/* Ingresos */}
         <div className="bg-white/70 backdrop-blur-md rounded-2xl p-4 shadow-inner border border-gray-100 hover:shadow-lg transition">
           <h4 className="text-center text-indigo-700 font-semibold mb-3">Ingresos por Categoría</h4>
-          <ResponsiveContainer width="100%" height={250}>
-            <PieChart>
-              <Pie data={incomeData} cx="50%" cy="50%" outerRadius={90} dataKey="value" label={CustomPieLabel}>
-                {incomeData.map((entry, i) => (
-                  <Cell key={i} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip />
-              <Legend layout="vertical" align="right" verticalAlign="middle" />
-            </PieChart>
-          </ResponsiveContainer>
+          {incomeData.length > 0 && totalIncome > 0 ? (
+            <ResponsiveContainer width="100%" height={250}>
+              <PieChart>
+                <Pie data={incomeData} cx="50%" cy="50%" outerRadius={90} dataKey="value" label={CustomPieLabel} fill="#6366F1">
+                  {incomeData.map((entry, i) => (
+                    <Cell key={i} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(value) => `$${Number(value).toLocaleString('es-ES', { minimumFractionDigits: 2 })}`} />
+                <Legend layout="vertical" align="right" verticalAlign="middle" />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-[250px] flex items-center justify-center text-gray-400">Sin datos de Ingresos</div>
+          )}
         </div>
 
         {/* Gastos */}
         <div className="bg-white/70 backdrop-blur-md rounded-2xl p-4 shadow-inner border border-gray-100 hover:shadow-lg transition">
           <h4 className="text-center text-indigo-700 font-semibold mb-3">Gastos por Categoría</h4>
-          <ResponsiveContainer width="100%" height={250}>
-            <PieChart>
-              <Pie data={expenseData} cx="50%" cy="50%" outerRadius={90} dataKey="value" label={CustomPieLabel}>
-                {expenseData.map((entry, i) => (
-                  <Cell key={i} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip />
-              <Legend layout="vertical" align="right" verticalAlign="middle" />
-            </PieChart>
-          </ResponsiveContainer>
+          {expenseData.length > 0 && totalExpense > 0 ? (
+            <ResponsiveContainer width="100%" height={250}>
+              <PieChart>
+                <Pie data={expenseData} cx="50%" cy="50%" outerRadius={90} dataKey="value" label={CustomPieLabel} fill="#EF4444">
+                  {expenseData.map((entry, i) => (
+                    <Cell key={i} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(value) => `$${Number(value).toLocaleString('es-ES', { minimumFractionDigits: 2 })}`} />
+                <Legend layout="vertical" align="right" verticalAlign="middle" />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-[250px] flex items-center justify-center text-gray-400">Sin datos de Gastos</div>
+          )}
         </div>
 
         {/* Balance */}
         <div className="bg-white/70 backdrop-blur-md rounded-2xl p-4 shadow-inner border border-gray-100 hover:shadow-lg transition">
           <h4 className="text-center text-indigo-700 font-semibold mb-3">Balance General</h4>
-          <ResponsiveContainer width="100%" height={250}>
-            <PieChart>
-              <Pie data={balanceData} cx="50%" cy="50%" outerRadius={90} dataKey="value" label={CustomPieLabel}>
-                {balanceData.map((entry, i) => (
-                  <Cell key={i} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip />
-              <Legend layout="vertical" align="right" verticalAlign="middle" />
-            </PieChart>
-          </ResponsiveContainer>
+          {balanceData.length > 0 && (totalIncome > 0 || totalExpense > 0) ? (
+            <ResponsiveContainer width="100%" height={250}>
+              <PieChart>
+                <Pie data={balanceData} cx="50%" cy="50%" outerRadius={90} dataKey="value" label={CustomPieLabel} fill="#3B82F6">
+                  {balanceData.map((entry, i) => (
+                    <Cell key={i} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(value) => `$${Number(value).toLocaleString('es-ES', { minimumFractionDigits: 2 })}`} />
+                <Legend layout="vertical" align="right" verticalAlign="middle" />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+             <div className="h-[250px] flex items-center justify-center text-gray-400">Sin movimientos para Balance</div>
+          )}
         </div>
       </div>
     </div>
