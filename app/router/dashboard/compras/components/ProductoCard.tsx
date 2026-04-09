@@ -1,3 +1,5 @@
+import Image from "next/image";
+
 interface Producto {
   id: number;
   nombre: string;
@@ -8,11 +10,14 @@ interface Producto {
 export default function ProductoCard({ producto }: { producto: Producto }) {
   return (
     <div className="bg-white border rounded-xl p-4 shadow hover:shadow-lg transition">
-      <img
-        src={producto.img}
-        alt={producto.nombre}
-        className="h-40 w-full object-cover rounded-lg"
-      />
+      <div className="relative h-40 w-full">
+        <Image
+          src={producto.img}
+          alt={producto.nombre}
+          fill
+          className="object-cover rounded-lg"
+        />
+      </div>
 
       <h3 className="text-lg font-semibold mt-3">{producto.nombre}</h3>
       <p className="text-gray-600">${producto.precio}</p>

@@ -1,4 +1,5 @@
 "use client"
+import React from "react"
 import { useRef, useState, useCallback } from "react"
 import {
   Check,
@@ -26,7 +27,7 @@ type Plan = {
   features: string[]
   badge?: string
   highlight?: boolean
-  icon?: any
+  icon?: React.ComponentType<{ className?: string; size?: number }>
 }
 
 const PLANS: Plan[] = [
@@ -154,7 +155,7 @@ export default function PricingCarousel() {
         }),
       })
 
-      let data: any = {}
+      let data: Record<string, unknown> = {}
 
       // Manejo de la respuesta como JSON
       try {
@@ -167,12 +168,12 @@ export default function PricingCarousel() {
       }
 
       // Si la respuesta fue OK (200, 201) y tiene la URL de redirección
-      if (response.ok && data?.url) {
-        setCheckoutMessage({
-          message: "Redireccionando a la pasarela de pago. Por favor, espera...",
-          type: "success",
-        })
-        window.location.href = data.url
+      if (response.ok && typeof data.url === "string") {
+        setCheckoutMessage({
+          message: "Redireccionando a la pasarela de pago. Por favor, espera...",
+          type: "success",
+        })
+        window.location.href = data.url
       } else if (!response.ok) {
         // Manejar errores del API Route (que a su vez trae errores de NestJS)
         const status = response.status
@@ -192,8 +193,8 @@ export default function PricingCarousel() {
           })
           console.error("Respuesta exitosa, pero sin URL:", data)
       }
-    } catch (error: any) {
-      const finalMessage = error.message || "Error de conexión. Verifica la URL del backend o la conexión de red."
+    } catch (error: unknown) {
+      const finalMessage = error instanceof Error ? error.message : "Error de conexión. Verifica la URL del backend o la conexión de red."
 
       setCheckoutMessage({
         message: finalMessage,

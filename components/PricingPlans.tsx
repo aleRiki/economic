@@ -52,8 +52,9 @@ export default function PricingPlans() {
     planName: string,
     sku: string,
     price: number,
-    period: "monthly" | "annual"
+    _period: "monthly" | "annual"
   ) => {
+    void _period
     if (price === 0) {
       alert("Plan Gratuito: Ya tienes acceso al plan gratuito");
       return;
