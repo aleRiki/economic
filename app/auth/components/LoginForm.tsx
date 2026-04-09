@@ -139,7 +139,7 @@ export const CipherAccessPortal = () => {
                 }`}
             >
               <Lock size={18} className="mr-3" />
-              {loading ? "GENERANDO TOKEN..." : "INICIAR CONEXIÓN"}
+              {loading ? "Cargando sus datos..." : "INICIAR CONEXIÓN"}
             </button>
           </form>
 

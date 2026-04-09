@@ -77,6 +77,14 @@
   --sidebar-border: oklch(0.92 0.004 286.32);
   --sidebar-ring: oklch(0.705 0.015 286.067);
 }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* optional: smoother scroll snap (if you want) */
+html { scroll-behavior: smooth; }
+
+/* small helper for supporting bright outline if needed */
+.glass-tilt { transition: transform 200ms ease, box-shadow 200ms ease; }
 
 .dark {
   --background: oklch(0.141 0.005 285.823);
